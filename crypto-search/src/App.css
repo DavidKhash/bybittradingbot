@@ -1,4 +1,8 @@
 /* src/App.css */
+.app-container {
+  padding-bottom: 70px; /* extra space for the bottom nav */
+}
+
 .App {
   max-width: 800px;
   margin: 0 auto;
@@ -170,4 +174,65 @@ li:hover, li:active {
   .volume {
     font-size: 0.8rem;
   }
+}
+
+/* Add these new styles to your existing App.css */
+
+.coin-icon {
+  width: 24px;
+  height: 24px;
+  margin-right: 8px;
+  border-radius: 50%;
+}
+
+.coin-icon.large {
+  width: 48px;
+  height: 48px;
+}
+
+.symbol-container {
+  display: flex;
+  align-items: center;
+}
+
+.selected-coin-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.selected-coin-header h2 {
+  margin: 0;
+  margin-left: 10px;
+}
+
+/* Update your existing li styles to accommodate the icon */
+li .top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+li .symbol-container {
+  display: flex;
+  align-items: center;
+}
+
+/* Optional: Add a subtle hover effect to the icons */
+.coin-icon {
+  transition: transform 0.2s ease;
+}
+
+li:hover .coin-icon {
+  transform: scale(1.1);
+}
+
+.no-results {
+  text-align: center;
+  color: #666;
+  padding: 20px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  margin-top: 10px;
 }
