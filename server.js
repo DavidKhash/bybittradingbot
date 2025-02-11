@@ -55,12 +55,12 @@ app.get('/api/tickers', async (req, res) => {
       recv_window: '5000'
     };
     
-    if (req.query.symbol) {
-      params.symbol = req.query.symbol;
-    }
-    
     const signature = getSignature(params, timestamp);
     
+    // If production endpoint is blocked, you can switch to testnet by changing the URL below.
+    // For example, to use testnet:
+    // const endpoint = 'https://api-testnet.bybit.com/v5/market/tickers';
+    // Otherwise, for production:
     const endpoint = 'https://api.bybit.com/v5/market/tickers';
     
     const response = await axios.get(endpoint, {
