@@ -7,9 +7,9 @@ function App() {
   const [tickers, setTickers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [selectedCoin, setSelectedCoin] = useState(null);
 
   useEffect(() => {
-    // Don't fetch if query is empty
     if (query.trim() === '') {
       setTickers([]);
       return;
@@ -30,7 +30,6 @@ function App() {
         const data = await response.json();
 
         if (response.ok && data.retCode === 0 && data.result && data.result.list) {
-          // Filter results that match the query
           const filteredTickers = data.result.list.filter(ticker => 
             ticker.symbol.toLowerCase().includes(query.toLowerCase())
           );
@@ -46,42 +45,97 @@ function App() {
       }
     };
 
-    // Debounce the API call by 500ms
     const delayDebounceFn = setTimeout(() => {
       fetchTickers();
     }, 500);
 
-    // Cleanup timeout on component unmount or when query changes
     return () => clearTimeout(delayDebounceFn);
-  }, [query]); // Effect runs when query changes
+  }, [query]);
+
+  const handleCoinSelect = (ticker) => {
+    setSelectedCoin(ticker);
+    setQuery(''); // Clear search after selection
+  };
+
+  const formatNumber = (num) => {
+    return parseFloat(num).toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 8
+    });
+  };
 
   return (
     <div className="App">
       <h1>Crypto Ticker Search</h1>
-      <input
-        type="text"
-        placeholder="Search for a crypto ticker (e.g., BTC, ETH)..."
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-      />
-      {loading && <p>Loading...</p>}
+
+      {selectedCoin && (
+        <div className="selected-coin">
+          <h2>{selectedCoin.symbol}</h2>
+          <div className="selected-coin-details">
+            <div className="detail-item">
+              <span className="detail-label">Price</span>
+              <span className="detail-value">${formatNumber(selectedCoin.lastPrice)}</span>
+            </div>
+            <div className="detail-item">
+              <span className="detail-label">24h Change</span>
+              <span className={`detail-value ${parseFloat(selectedCoin.price24hPcnt) >= 0 ? 'positive' : 'negative'}`}>
+                {(parseFloat(selectedCoin.price24hPcnt) * 100).toFixed(2)}%
+              </span>
+            </div>
+            <div className="detail-item">
+              <span className="detail-label">24h High</span>
+              <span className="detail-value">${formatNumber(selectedCoin.highPrice24h)}</span>
+            </div>
+            <div className="detail-item">
+              <span className="detail-label">24h Low</span>
+              <span className="detail-value">${formatNumber(selectedCoin.lowPrice24h)}</span>
+            </div>
+            <div className="detail-item">
+              <span className="detail-label">24h Volume</span>
+              <span className="detail-value">${formatNumber(selectedCoin.volume24h)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="search-container">
+        <input
+          type="text"
+          placeholder="Search for a crypto ticker (e.g., BTC, ETH)..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      </div>
+
+      {loading && <p className="loading">Loading...</p>}
       {error && <p className="error">{error}</p>}
-      <ul>
-        {tickers.map((ticker) => (
-          <li key={ticker.symbol}>
-            <span className="symbol">{ticker.symbol}</span>
-            <span className="price">
-              Last Price: ${parseFloat(ticker.lastPrice).toLocaleString()} 
-            </span>
-            <span className={`change ${parseFloat(ticker.price24hPcnt) >= 0 ? 'positive' : 'negative'}`}>
-              24h Change: {(parseFloat(ticker.price24hPcnt) * 100).toFixed(2)}%
-            </span>
-            <span className="volume">
-              24h Volume: ${parseFloat(ticker.volume24h).toLocaleString()}
-            </span>
-          </li>
-        ))}
-      </ul>
+      
+      {query && (
+        <ul>
+          {tickers.map((ticker) => (
+            <li 
+              key={ticker.symbol}
+              onClick={() => handleCoinSelect(ticker)}
+              className={selectedCoin?.symbol === ticker.symbol ? 'selected' : ''}
+            >
+              <div className="top-row">
+                <span className="symbol">{ticker.symbol}</span>
+                <span className="price">
+                  ${formatNumber(ticker.lastPrice)}
+                </span>
+              </div>
+              <div className="bottom-row">
+                <span className={`change ${parseFloat(ticker.price24hPcnt) >= 0 ? 'positive' : 'negative'}`}>
+                  {(parseFloat(ticker.price24hPcnt) * 100).toFixed(2)}%
+                </span>
+                <span className="volume">
+                  Vol: ${formatNumber(ticker.volume24h)}
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
