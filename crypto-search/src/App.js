@@ -17,7 +17,7 @@ function App() {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch('http://165.227.230.202:4001/api/tickers', {
+        const response = await fetch(`http://165.227.230.202:4001/api/tickers?symbol=${query.toUpperCase()}USDT`, {
           method: 'GET',
           headers: {
             'Accept': 'application/json',
@@ -30,10 +30,7 @@ function App() {
         console.log('Response data:', data);
 
         if (response.ok && data.retCode === 0 && data.result && data.result.list) {
-          const filteredTickers = data.result.list.filter(ticker => 
-            ticker.symbol.toLowerCase().includes(query.toLowerCase())
-          );
-          setTickers(filteredTickers);
+          setTickers(data.result.list);
         } else {
           throw new Error(data.retMsg || 'Failed to fetch tickers');
         }
