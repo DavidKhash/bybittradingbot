@@ -17,7 +17,7 @@ function App() {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch('http://localhost:4001/api/tickers', {
+        const response = await fetch('http://165.227.119.10:4001/api/tickers', {
           method: 'GET',
           headers: {
             'Accept': 'application/json',
