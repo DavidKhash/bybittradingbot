@@ -55,6 +55,11 @@ app.get('/api/tickers', async (req, res) => {
       recv_window: '5000'
     };
     
+    // Add symbol to params if provided in query
+    if (req.query.symbol) {
+      params.symbol = req.query.symbol.toUpperCase();
+    }
+    
     const signature = getSignature(params, timestamp);
     
     // If production endpoint is blocked, you can switch to testnet by changing the URL below.

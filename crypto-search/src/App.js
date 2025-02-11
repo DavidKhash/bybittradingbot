@@ -9,15 +9,17 @@ function App() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    // Don't fetch if query is empty
+    if (query.trim() === '') {
+      setTickers([]);
+      return;
+    }
+
     const fetchTickers = async () => {
-      if (query.trim() === '') {
-        setTickers([]);
-        return;
-      }
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch('http://159.65.25.174:4001/api/tickers', {
+        const response = await fetch(`http://159.65.25.174:4001/api/tickers?symbol=${query}USDT`, {
           method: 'GET',
           headers: {
             'Accept': 'application/json',
@@ -25,11 +27,10 @@ function App() {
           }
         });
         
-        console.log('Response status:', response.status);
         const data = await response.json();
-        console.log('Response data:', data);
 
         if (response.ok && data.retCode === 0 && data.result && data.result.list) {
+          // Filter results that match the query
           const filteredTickers = data.result.list.filter(ticker => 
             ticker.symbol.toLowerCase().includes(query.toLowerCase())
           );
@@ -38,19 +39,21 @@ function App() {
           throw new Error(data.retMsg || 'Failed to fetch tickers');
         }
       } catch (error) {
-        console.error('Detailed error:', error);
+        console.error('Error fetching data:', error);
         setError(`Error fetching tickers: ${error.message}`);
       } finally {
         setLoading(false);
       }
     };
 
+    // Debounce the API call by 500ms
     const delayDebounceFn = setTimeout(() => {
       fetchTickers();
     }, 500);
 
+    // Cleanup timeout on component unmount or when query changes
     return () => clearTimeout(delayDebounceFn);
-  }, [query]);
+  }, [query]); // Effect runs when query changes
 
   return (
     <div className="App">
@@ -70,11 +73,8 @@ function App() {
             <span className="price">
               Last Price: ${parseFloat(ticker.lastPrice).toLocaleString()} 
             </span>
-            <span className="change">
-              24h Change: 
-              <span className={parseFloat(ticker.price24hPcnt) >= 0 ? 'positive' : 'negative'}>
-                {(parseFloat(ticker.price24hPcnt) * 100).toFixed(2)}%
-              </span>
+            <span className={`change ${parseFloat(ticker.price24hPcnt) >= 0 ? 'positive' : 'negative'}`}>
+              24h Change: {(parseFloat(ticker.price24hPcnt) * 100).toFixed(2)}%
             </span>
             <span className="volume">
               24h Volume: ${parseFloat(ticker.volume24h).toLocaleString()}
