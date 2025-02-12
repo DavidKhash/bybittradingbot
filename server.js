@@ -381,5 +381,49 @@ app.get('/api/positions', async (req, res) => {
   }
 });
 
+// New endpoint for closed positions
+app.get('/api/v5/position/closed-pnl', async (req, res) => {
+  try {
+    const { category, limit } = req.query;
+    const timestamp = Date.now().toString();
+    const params = {
+      category: category || 'linear',
+      limit: limit || '50',
+      recv_window: '5000'
+    };
+    
+    const signature = getSignature(params, timestamp, true);
+    
+    const response = await axios.get('https://api-testnet.bybit.com/v5/position/closed-pnl', {
+      params: params,
+      headers: {
+        'X-BAPI-API-KEY': API_KEY,
+        'X-BAPI-SIGN': signature,
+        'X-BAPI-TIMESTAMP': timestamp,
+        'X-BAPI-RECV-WINDOW': params.recv_window,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    console.log('Closed PNL response:', response.data);
+    
+    if (response.data && response.data.retCode === 0) {
+      res.json(response.data);
+    } else {
+      console.error('Invalid closed PNL response:', response.data);
+      res.status(400).json({
+        error: 'Failed to fetch closed positions',
+        details: response.data
+      });
+    }
+  } catch (error) {
+    console.error('Error fetching closed positions:', error.response?.data || error.message);
+    res.status(500).json({ 
+      error: 'Failed to fetch closed positions',
+      details: error.response?.data || error.message 
+    });
+  }
+});
+
 const PORT = 4001;
 app.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
