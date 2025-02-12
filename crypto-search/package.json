@@ -6,8 +6,10 @@
     "cra-template": "1.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-pull-to-refresh": "^2.0.1",
     "react-router-dom": "^7.1.5",
-    "react-scripts": "5.0.1"
+    "react-scripts": "5.0.1",
+    "react-scroll-component": "^0.6.7"
   },
   "scripts": {
     "start": "react-scripts start",

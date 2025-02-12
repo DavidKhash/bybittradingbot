@@ -101,6 +101,8 @@ function Home() {
     }
 
     const tradeAmount = localStorage.getItem('tradeAmount');
+    const tradeLeverage = localStorage.getItem('tradeLeverage') || '1';
+    
     if (!tradeAmount) {
       alert('Please set a trade amount in Settings first');
       return;
@@ -111,7 +113,7 @@ function Home() {
       side: 'Buy',
       type: 'Market',
       qty: tradeAmount,
-      leverage: '1',
+      leverage: tradeLeverage,
       positionIdx: 0,
       timeInForce: 'GTC'
     };

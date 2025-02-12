@@ -125,8 +125,8 @@ app.post('/api/place-order', async (req, res) => {
     
     // Modify symbol to add USDT if not present
     const orderSymbol = symbol.endsWith('USDT') ? symbol : `${symbol}USDT`;
-    
-    // First, get the instrument info to get the correct quantity precision
+
+    // Get instrument info to determine allowed leverage and quantity precision
     const instrumentParams = {
       category: 'linear',
       symbol: orderSymbol,
@@ -154,8 +154,53 @@ app.post('/api/place-order', async (req, res) => {
     
     const instrumentInfo = instrumentResponse.data.result.list[0];
     const lotSizeFilter = instrumentInfo.lotSizeFilter;
+    const leverageFilter = instrumentInfo.leverageFilter;  // NEW: get leverage filter info
     const qtyStep = parseFloat(lotSizeFilter.qtyStep);
     const minOrderQty = parseFloat(lotSizeFilter.minOrderQty);
+    const maxLeverage = parseFloat(leverageFilter.maxLeverage);
+    
+    // Adjust the requested leverage if it exceeds maximum allowed
+    let reqLeverage = parseFloat(leverage);
+    if (reqLeverage > maxLeverage) {
+      console.log(`Requested leverage ${reqLeverage} exceeds maximum allowed ${maxLeverage}. Using max allowed.`);
+      reqLeverage = maxLeverage;
+    }
+    
+    // Set leverage first using the (possibly adjusted) reqLeverage
+    const leverageParams = {
+      category: 'linear',
+      symbol: orderSymbol,
+      buyLeverage: reqLeverage.toString(),
+      sellLeverage: reqLeverage.toString(),
+      recv_window: '5000'
+    };
+    
+    const leverageSignature = getSignature(leverageParams, timestamp);
+    
+    try {
+      const leverageResponse = await axios.post(
+        'https://api-testnet.bybit.com/v5/position/set-leverage',
+        leverageParams,
+        {
+          headers: {
+            'X-BAPI-API-KEY': API_KEY,
+            'X-BAPI-SIGN': leverageSignature,
+            'X-BAPI-TIMESTAMP': timestamp,
+            'X-BAPI-RECV-WINDOW': leverageParams.recv_window,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      console.log('Leverage set response:', leverageResponse.data);
+      
+      if (leverageResponse.data.retCode !== 0) {
+        throw new Error(`Failed to set leverage: ${leverageResponse.data.retMsg}`);
+      }
+    } catch (leverageError) {
+      console.error('Error setting leverage:', leverageError);
+      // Continue with the order even if leverage setting fails
+    }
     
     // Get current price
     const tickerParams = {
@@ -185,18 +230,27 @@ app.post('/api/place-order', async (req, res) => {
     
     const currentPrice = parseFloat(tickerResponse.data.result.list[0].lastPrice);
     
-    // Calculate the quantity of coins based on USDT amount and round to valid step size
+    // Calculate the target quantity as a float (desired USDT amount divided by current price)
     let calculatedQty = parseFloat(usdtAmount) / currentPrice;
     
-    // Round to the nearest valid quantity step
-    calculatedQty = Math.floor(calculatedQty / qtyStep) * qtyStep;
+    // Compute the allowed quantities using the lot size step:
+    const floorQty = Math.floor(calculatedQty / qtyStep) * qtyStep;
+    const ceilQty = Math.ceil(calculatedQty / qtyStep) * qtyStep;
     
-    // Ensure quantity is at least the minimum order quantity
-    calculatedQty = Math.max(calculatedQty, minOrderQty);
+    // Ensure both quantities are not below the minimum order quantity
+    const validFloorQty = floorQty < minOrderQty ? minOrderQty : floorQty;
+    const validCeilQty = ceilQty < minOrderQty ? minOrderQty : ceilQty;
     
-    // Format the quantity with the correct precision
+    // Calculate the absolute differences in USDT value
+    const floorValueDiff = Math.abs(parseFloat(usdtAmount) - validFloorQty * currentPrice);
+    const ceilValueDiff = Math.abs(parseFloat(usdtAmount) - validCeilQty * currentPrice);
+    
+    // Choose the quantity that yields the order value closest to the target USDT amount
+    let finalQty = (floorValueDiff <= ceilValueDiff) ? validFloorQty : validCeilQty;
+    
+    // Format the quantity with the correct precision (based on the lot size step)
     const decimalPlaces = qtyStep.toString().split('.')[1]?.length || 0;
-    const formattedQty = calculatedQty.toFixed(decimalPlaces);
+    const formattedQty = finalQty.toFixed(decimalPlaces);
     
     console.log(`Converting ${usdtAmount} USDT to ${formattedQty} ${symbol} at price ${currentPrice}`);
     console.log(`Using lot size step: ${qtyStep}, min order qty: ${minOrderQty}`);
