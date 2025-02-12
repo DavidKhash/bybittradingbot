@@ -33,7 +33,7 @@ function TradeModal({ isOpen, onClose, onConfirm, symbol, orderDetails }) {
         <div className="order-details">
           <p>Symbol: {symbol}</p>
           <p>Type: {orderDetails.side} {orderDetails.type}</p>
-          <p>Quantity: {orderDetails.qty}</p>
+          <p>USDT Amount: {orderDetails.qty} USDT</p>
           <p>Leverage: {orderDetails.leverage}x</p>
         </div>
         <form onSubmit={handleSubmit}>

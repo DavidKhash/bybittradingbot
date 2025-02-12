@@ -121,10 +121,85 @@ app.post('/api/place-order', async (req, res) => {
     console.log('Received request body:', req.body);
     
     const timestamp = Date.now().toString();
-    const { symbol, side, type, qty, leverage } = req.body;
+    const { symbol, side, type, qty: usdtAmount, leverage } = req.body;
     
     // Modify symbol to add USDT if not present
     const orderSymbol = symbol.endsWith('USDT') ? symbol : `${symbol}USDT`;
+    
+    // First, get the instrument info to get the correct quantity precision
+    const instrumentParams = {
+      category: 'linear',
+      symbol: orderSymbol,
+      recv_window: '5000'
+    };
+    
+    const instrumentSignature = getSignature(instrumentParams, timestamp, true);
+    
+    const instrumentResponse = await axios.get(
+      'https://api-testnet.bybit.com/v5/market/instruments-info',
+      {
+        params: instrumentParams,
+        headers: {
+          'X-BAPI-API-KEY': API_KEY,
+          'X-BAPI-SIGN': instrumentSignature,
+          'X-BAPI-TIMESTAMP': timestamp,
+          'X-BAPI-RECV-WINDOW': instrumentParams.recv_window
+        }
+      }
+    );
+    
+    if (!instrumentResponse.data?.result?.list?.[0]) {
+      throw new Error('Could not get instrument information');
+    }
+    
+    const instrumentInfo = instrumentResponse.data.result.list[0];
+    const lotSizeFilter = instrumentInfo.lotSizeFilter;
+    const qtyStep = parseFloat(lotSizeFilter.qtyStep);
+    const minOrderQty = parseFloat(lotSizeFilter.minOrderQty);
+    
+    // Get current price
+    const tickerParams = {
+      category: 'linear',
+      symbol: orderSymbol,
+      recv_window: '5000'
+    };
+    
+    const tickerSignature = getSignature(tickerParams, timestamp, true);
+    
+    const tickerResponse = await axios.get(
+      'https://api-testnet.bybit.com/v5/market/tickers',
+      {
+        params: tickerParams,
+        headers: {
+          'X-BAPI-API-KEY': API_KEY,
+          'X-BAPI-SIGN': tickerSignature,
+          'X-BAPI-TIMESTAMP': timestamp,
+          'X-BAPI-RECV-WINDOW': tickerParams.recv_window
+        }
+      }
+    );
+    
+    if (!tickerResponse.data?.result?.list?.[0]?.lastPrice) {
+      throw new Error('Could not get current price for symbol');
+    }
+    
+    const currentPrice = parseFloat(tickerResponse.data.result.list[0].lastPrice);
+    
+    // Calculate the quantity of coins based on USDT amount and round to valid step size
+    let calculatedQty = parseFloat(usdtAmount) / currentPrice;
+    
+    // Round to the nearest valid quantity step
+    calculatedQty = Math.floor(calculatedQty / qtyStep) * qtyStep;
+    
+    // Ensure quantity is at least the minimum order quantity
+    calculatedQty = Math.max(calculatedQty, minOrderQty);
+    
+    // Format the quantity with the correct precision
+    const decimalPlaces = qtyStep.toString().split('.')[1]?.length || 0;
+    const formattedQty = calculatedQty.toFixed(decimalPlaces);
+    
+    console.log(`Converting ${usdtAmount} USDT to ${formattedQty} ${symbol} at price ${currentPrice}`);
+    console.log(`Using lot size step: ${qtyStep}, min order qty: ${minOrderQty}`);
     
     // Place the order
     const orderParams = {
@@ -132,7 +207,7 @@ app.post('/api/place-order', async (req, res) => {
       symbol: orderSymbol,
       side: side,
       orderType: type.toUpperCase(),
-      qty: qty.toString(),
+      qty: formattedQty,
       timeInForce: 'GTC',
       recv_window: '5000',
       positionIdx: 0,
@@ -162,7 +237,14 @@ app.post('/api/place-order', async (req, res) => {
       console.log('Order response:', response.data);
       
       if (response.data.retCode === 0) {
-        res.json(response.data);
+        res.json({
+          ...response.data,
+          orderDetails: {
+            usdtAmount,
+            calculatedQty: formattedQty,
+            price: currentPrice
+          }
+        });
       } else {
         res.status(400).json({
           error: 'Order placement failed',
