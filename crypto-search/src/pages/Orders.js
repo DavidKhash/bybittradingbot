@@ -33,6 +33,7 @@ function Orders() {
     placeholder: ''
   });
   const [tempInputValue, setTempInputValue] = useState('');
+  const [refreshInterval, setRefreshInterval] = useState(5000);
 
   const getCryptoIcon = (symbol) => {
     const baseSymbol = symbol.replace(/USDT$|USD$/, '').toLowerCase();
@@ -49,10 +50,10 @@ function Orders() {
       // Initial fetch
       fetchPositions();
 
-      // Set up auto-refresh interval
+      // Set up auto-refresh interval using the selected refreshInterval
       const newIntervalId = setInterval(() => {
         fetchPositions(false);
-      }, 5000);
+      }, refreshInterval);
       setIntervalId(newIntervalId);
 
       // Cleanup function to clear interval when component unmounts
@@ -65,7 +66,7 @@ function Orders() {
       clearInterval(intervalId);
       setIntervalId(null);
     }
-  }, [autoRefreshEnabled]); // Run when autoRefreshEnabled changes
+  }, [autoRefreshEnabled, refreshInterval]); // Run when autoRefreshEnabled or refreshInterval changes
 
   const fetchPositions = async (isManual = false) => {
     try {
@@ -92,8 +93,10 @@ function Orders() {
             position => parseFloat(position.size) > 0
           );
           setPositions(activePositions);
-          // Trigger animation
-          setUpdateKey(prev => prev + 1);
+          // Trigger animation only if refresh interval is 5000 ms (5 seconds)
+          if (refreshInterval === 5000) {
+            setUpdateKey(prev => prev + 1);
+          }
         } else {
           setPositions([]); // Set empty array if no positions found
         }
@@ -233,34 +236,50 @@ function Orders() {
     setSortOption(e.target.value);
   };
 
+  const handleRefreshIntervalChange = (interval) => {
+    if (autoRefreshEnabled) {
+      setRefreshInterval(interval);
+    }
+  };
+
   return (
     <div className="App">
       <h1>Current Positions</h1>
       <div className="controls-container">
-        <div className="auto-refresh-toggle">
-          <span className="toggle-label">Auto-refresh</span>
-          <label className="toggle-switch">
-            <input
-              type="checkbox"
-              checked={autoRefreshEnabled}
-              onChange={handleToggleAutoRefresh}
-            />
-            <span className="toggle-slider"></span>
-          </label>
-        </div>
-        <div className="sort-container">
-          <span className="toggle-label">Sort by:</span>
-          <select 
-            className="sort-select"
-            value={sortOption}
-            onChange={handleSortChange}
-          >
-            <option value="none">None</option>
-            <option value="pnl-high-low">PNL (High to Low)</option>
-            <option value="pnl-low-high">PNL (Low to High)</option>
-            <option value="roe-high-low">ROE (High to Low)</option>
-            <option value="roe-low-high">ROE (Low to High)</option>
-          </select>
+        <div className="refresh-timer-container">
+          <div className="refresh-group">
+            <div className="refresh-header">
+              <span className="toggle-label">Auto-refresh</span>
+              <label className="toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={autoRefreshEnabled}
+                  onChange={handleToggleAutoRefresh}
+                />
+                <span className="toggle-slider"></span>
+              </label>
+            </div>
+            <div className="refresh-buttons">
+              <button 
+                className={`refresh-button ${refreshInterval === 1000 ? 'active' : ''}`}
+                onClick={() => handleRefreshIntervalChange(1000)}
+              >
+                1 Second
+              </button>
+              <button 
+                className={`refresh-button ${refreshInterval === 3000 ? 'active' : ''}`}
+                onClick={() => handleRefreshIntervalChange(3000)}
+              >
+                3 Seconds
+              </button>
+              <button 
+                className={`refresh-button ${refreshInterval === 5000 ? 'active' : ''}`}
+                onClick={() => handleRefreshIntervalChange(5000)}
+              >
+                5 Seconds
+              </button>
+            </div>
+          </div>
         </div>
         <div className="filters-container">
           <div className="filter-group">
@@ -335,6 +354,22 @@ function Orders() {
               </div>
             )}
           </div>
+          <div className="filter-group sort-group">
+            <div className="filter-row">
+              <span className="toggle-label">Sort by:</span>
+              <select 
+                className="sort-select"
+                value={sortOption}
+                onChange={handleSortChange}
+              >
+                <option value="none">None</option>
+                <option value="pnl-high-low">PNL (High to Low)</option>
+                <option value="pnl-low-high">PNL (Low to High)</option>
+                <option value="roe-high-low">ROE (High to Low)</option>
+                <option value="roe-low-high">ROE (Low to High)</option>
+              </select>
+            </div>
+          </div>
         </div>
       </div>
       <PullToRefresh
@@ -387,26 +422,30 @@ function Orders() {
                       </span>
 
                       <div className="position-quick-stats">
-                        <span 
-                          key={`${updateKey}-pnl`}
-                          className={`value ${
-                            parseFloat(position.unrealisedPnl) >= 0 ? 'positive' : 'negative'
-                          } animate-update-active ${
-                            sortOption.includes('pnl') ? 'sorted-value' : ''
-                          }`}
-                        >
-                          ${formatTwoDecimals(position.unrealisedPnl)}
-                        </span>
-                        <span 
-                          key={`${updateKey}-roe`}
-                          className={`value ${
-                            parseFloat(position.unrealisedPnl) >= 0 ? 'positive' : 'negative'
-                          } animate-update-active ${
-                            sortOption.includes('roe') ? 'sorted-value' : ''
-                          }`}
-                        >
-                          {formatTwoDecimals((parseFloat(position.unrealisedPnl) / parseFloat(position.positionValue)) * 100)}%
-                        </span>
+                        <div className="quick-stat">
+                          <span 
+                            key={`${updateKey}-pnl`}
+                            className={`value ${
+                              parseFloat(position.unrealisedPnl) >= 0 ? 'positive' : 'negative'
+                            } animate-update-active ${
+                              sortOption.includes('pnl') ? 'sorted-value' : ''
+                            }`}
+                          >
+                            ${formatTwoDecimals(position.unrealisedPnl)}
+                          </span>
+                        </div>
+                        <div className="quick-stat">
+                          <span 
+                            key={`${updateKey}-roe`}
+                            className={`value ${
+                              parseFloat(position.unrealisedPnl) >= 0 ? 'positive' : 'negative'
+                            } animate-update-active ${
+                              sortOption.includes('roe') ? 'sorted-value' : ''
+                            }`}
+                          >
+                            {formatTwoDecimals((parseFloat(position.unrealisedPnl) / parseFloat(position.positionValue)) * 100)}%
+                          </span>
+                        </div>
                       </div>
                     </div>
 

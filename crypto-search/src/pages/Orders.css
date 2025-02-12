@@ -26,6 +26,16 @@
               transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   transform-origin: top;
   transform: scaleY(1);
+  border-left: 3px solid rgba(0, 0, 0, 0.1);
+  padding-left: 10px;
+  margin-left: 5px;
+  padding-top: 8px;
+}
+
+.position-details .detail-row:not(:last-child) {
+  border-bottom: 1px dashed rgba(0, 0, 0, 0.1);
+  margin-bottom: 5px;
+  padding-bottom: 5px;
 }
 
 .position-card.collapsed .position-details {
@@ -39,26 +49,54 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 5px;
+  margin: 8px 0;
 }
 
 .position-summary-info {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  width: calc(100% - 30px); /* Account for arrow button width */
+  flex-wrap: nowrap;
+  width: calc(100% - 30px);
+  gap: 12px;
 }
 
 .position-quick-stats {
   display: flex;
   margin-left: auto;
-  gap: 15px;
-  flex-wrap: wrap;
+  gap: 12px;
+  flex-wrap: nowrap;
   padding-right: 10px;
+  position: relative;
+}
+
+.quick-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: fit-content;
+  align-items: center;
+}
+
+.stat-label {
+  font-size: 0.65rem;
+  color: #888;
+  opacity: 0.8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: center;
+  width: 100%;
 }
 
 .position-quick-stats .value {
   animation: slideInFromTop 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.02);
+  font-size: 0.85rem;
+  white-space: nowrap;
+  text-align: center;
 }
 
 @keyframes slideInFromTop {
@@ -113,6 +151,8 @@
   padding: 3px 6px;
   border-radius: 4px;
   font-size: 0.8rem;
+  white-space: nowrap;
+  min-width: fit-content;
 }
 
 .position-side.buy {
@@ -184,19 +224,20 @@
 .symbol-container {
   display: flex;
   align-items: center;
-  gap: 3px;
-  margin-right: 10px;
+  gap: 6px;
+  min-width: fit-content;
 }
 
 .coin-icon {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   object-fit: contain;
 }
 
 .symbol-container h2 {
   font-size: 1rem;
   margin: 0;
+  white-space: nowrap;
 }
 
 @media (min-width: 768px) {
@@ -247,25 +288,36 @@
   }
 
   .position-summary-info {
-    width: calc(100% - 25px);
+    width: calc(100% - 28px);
+    gap: 6px;
   }
 
   .position-quick-stats {
-    gap: 10px;
+    gap: 6px;
     padding-right: 5px;
   }
 
   .coin-icon {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
   }
 
   .symbol-container h2 {
-    font-size: 0.9rem;
+    font-size: 0.85rem;
   }
 
-  .label, .value {
-    font-size: 0.8rem;
+  .position-side {
+    padding: 2px 4px;
+    font-size: 0.7rem;
+  }
+
+  .stat-label {
+    font-size: 0.55rem;
+  }
+
+  .position-quick-stats .value {
+    font-size: 0.75rem;
+    padding: 1px 3px;
   }
 }
 
@@ -384,16 +436,6 @@ input:checked + .toggle-slider:before {
   box-sizing: border-box;
 }
 
-.sort-container {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: center;
-  min-width: 200px;
-  box-sizing: border-box;
-}
-
 .sort-select {
   padding: 6px 12px;
   border: 1px solid #ccc;
@@ -403,7 +445,7 @@ input:checked + .toggle-slider:before {
   color: #666;
   cursor: pointer;
   transition: border-color 0.3s ease;
-  width: 160px;
+  width: 100%;
   box-sizing: border-box;
 }
 
@@ -426,17 +468,28 @@ input:checked + .toggle-slider:before {
     align-items: center;
   }
 
-  .auto-refresh-toggle, .sort-container {
-    width: auto;
+  .auto-refresh-toggle, .sort-select {
+    width: 100%;
     justify-content: center;
   }
 
   .sort-select {
-    width: 200px;
+    width: 100%;
   }
 
   .toggle-label {
     font-size: 0.85rem;
+  }
+
+  .stat-label {
+    font-size: 0.6rem;
+    width: 100%;
+  }
+
+  .position-quick-stats .value {
+    font-size: 0.8rem;
+    padding: 2px 4px;
+    text-align: center;
   }
 }
 
@@ -447,9 +500,8 @@ input:checked + .toggle-slider:before {
     padding: 8px;
   }
 
-  .sort-container {
-    flex-direction: column;
-    gap: 5px;
+  .sort-select {
+    width: 100%;
   }
 
   .toggle-label {
@@ -772,4 +824,119 @@ input:checked + .toggle-slider:before {
   font-weight: 500;
   font-size: 0.9rem;
   min-width: 85px;
+}
+
+/* Refresh Interval UI styles */
+.refresh-timer-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 10px auto;
+  width: 100%;
+  max-width: 400px;
+  padding: 0 15px;
+  box-sizing: border-box;
+}
+
+.refresh-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  justify-content: center;
+  width: 100%;
+  background: #e8f5e9;
+  padding: 8px 15px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  box-sizing: border-box;
+}
+
+.refresh-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 4px;
+}
+
+.refresh-buttons {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  background: white;
+  padding: 2px;
+  border-radius: 6px;
+  border: 1px solid #cfd8dc;
+  flex: 1;
+  justify-content: space-between;
+  opacity: 1;
+  pointer-events: all;
+  transition: all 0.3s ease;
+}
+
+/* Dim refresh buttons when auto-refresh is disabled */
+input:not(:checked) ~ .refresh-buttons {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.refresh-button {
+  padding: 6px 10px;
+  border: none;
+  border-radius: 4px;
+  background-color: white;
+  font-size: 0.85rem;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  flex: 1;
+  text-align: center;
+  font-weight: 500;
+}
+
+.refresh-button.active {
+  background-color: #00695c;
+  color: white;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+@media (max-width: 480px) {
+  .refresh-timer-container {
+    width: 100%;
+    margin: 0 auto;
+    padding: 0 15px;
+  }
+
+  .refresh-group {
+    padding: 8px;
+  }
+}
+
+@media (max-width: 320px) {
+  .refresh-timer-container {
+    padding: 0 10px;
+  }
+
+  .refresh-group {
+    padding: 8px 4px;
+  }
+}
+
+.sort-group {
+  background: #f8f9fa;
+  padding: 8px 15px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.sort-group .filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sort-group .toggle-label {
+  white-space: nowrap;
 } 
