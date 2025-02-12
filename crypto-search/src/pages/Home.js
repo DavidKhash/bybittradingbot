@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import '../App.css';
+import TradeModal from '../components/TradeModal';
 
 function Home() {
   const [query, setQuery] = useState('');
@@ -7,6 +8,9 @@ function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [selectedCoin, setSelectedCoin] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [orderDetails, setOrderDetails] = useState(null);
+  const [accountBalance, setAccountBalance] = useState(null);
 
   useEffect(() => {
     if (query.trim() === '') {
@@ -68,6 +72,94 @@ function Home() {
     return () => clearTimeout(delayDebounceFn);
   }, [query]);
 
+  useEffect(() => {
+    // Fetch account balance when component mounts
+    fetchAccountBalance();
+  }, []);
+
+  const fetchAccountBalance = async () => {
+    try {
+      const response = await fetch('http://159.65.25.174:4001/api/balance', {
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await response.json();
+      if (data.result && data.result.list) {
+        setAccountBalance(data.result.list[0].totalWalletBalance);
+      }
+    } catch (error) {
+      console.error('Error fetching balance:', error);
+    }
+  };
+
+  const handlePlaceOrder = async (symbol) => {
+    if (!localStorage.getItem('tradePassword')) {
+      alert('Please set a trade password in Settings first');
+      return;
+    }
+
+    const tradeAmount = localStorage.getItem('tradeAmount');
+    if (!tradeAmount) {
+      alert('Please set a trade amount in Settings first');
+      return;
+    }
+
+    const orderDetails = {
+      symbol: symbol,
+      side: 'Buy',
+      type: 'Market',
+      qty: tradeAmount,
+      leverage: '1',
+      positionIdx: 0,
+      timeInForce: 'GTC'
+    };
+
+    console.log('Setting order details:', orderDetails);
+    
+    setOrderDetails(orderDetails);
+    setIsModalOpen(true);
+  };
+
+  const handleOrderConfirm = async (password) => {
+    try {
+      const orderPayload = {
+        ...orderDetails,
+        password
+      };
+      
+      console.log('Sending order payload:', orderPayload);
+      
+      const response = await fetch('http://159.65.25.174:4001/api/place-order', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(orderPayload)
+      });
+
+      const data = await response.json();
+      console.log('Order response:', data);
+      
+      if (response.ok && data.retCode === 0) {
+        alert('Order placed successfully!');
+      } else {
+        const errorMessage = data.error ? 
+          `${data.error}: ${JSON.stringify(data.details)}` : 
+          `Order failed: ${JSON.stringify(data)}`;
+        alert(errorMessage);
+        console.error('Order placement failed:', data);
+      }
+    } catch (error) {
+      console.error('Error placing order:', error);
+      alert(`Failed to place order: ${error.message}`);
+    } finally {
+      setIsModalOpen(false);
+    }
+  };
+
   const handleCoinSelect = (ticker) => {
     setSelectedCoin(ticker);
     setQuery('');
@@ -98,6 +190,16 @@ function Home() {
   const handleIconError = (e) => {
     e.target.src = 'https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/generic.png'; // Generic icon as fallback
   };
+
+  // Add this to your existing JSX where you want the trade button to appear
+  const renderTradeButton = (ticker) => (
+    <button 
+      className="trade-button"
+      onClick={() => handlePlaceOrder(ticker.symbol)}
+    >
+      Trade
+    </button>
+  );
 
   return (
     <div className="App">
@@ -138,6 +240,7 @@ function Home() {
               <span className="detail-value">${formatNumber(selectedCoin.volume24h)}</span>
             </div>
           </div>
+          {renderTradeButton(selectedCoin)}
         </div>
       )}
 
@@ -150,10 +253,13 @@ function Home() {
         />
       </div>
 
-      {loading && <p className="loading">Loading...</p>}
-      {error && <p className="error">{error}</p>}
-      
-      {query && (
+      {loading ? (
+        <div className="loading-container">
+          <div className="spinner" />
+        </div>
+      ) : error ? (
+        <p className="error">{error}</p>
+      ) : query.trim() !== '' ? (
         <ul>
           {tickers.length > 0 ? (
             tickers.map((ticker) => (
@@ -190,7 +296,15 @@ function Home() {
             <p className="no-results">No matching cryptocurrencies found</p>
           )}
         </ul>
-      )}
+      ) : null}
+
+      <TradeModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onConfirm={handleOrderConfirm}
+        symbol={orderDetails?.symbol}
+        orderDetails={orderDetails}
+      />
     </div>
   );
 }

@@ -37,6 +37,7 @@ ul {
   list-style: none;
   padding: 0;
   margin: 0;
+  animation: fadeIn 0.3s ease-in;
 }
 
 li {
@@ -235,4 +236,141 @@ li:hover .coin-icon {
   background-color: #f8f9fa;
   border-radius: 8px;
   margin-top: 10px;
+}
+
+/* Add to your existing App.css */
+.trade-button {
+  background-color: #2196f3;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  margin-top: 15px;
+}
+
+.trade-button:hover {
+  background-color: #1976d2;
+}
+
+.settings-container {
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.form-group label {
+  font-weight: bold;
+}
+
+.form-group input {
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.success-message {
+  color: #4caf50;
+  text-align: center;
+  margin-top: 10px;
+}
+
+.error-message {
+  color: #f44336;
+  text-align: center;
+  margin-top: 10px;
+}
+
+/* Add to your existing App.css */
+.settings-section {
+  background-color: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.settings-section h2 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 1.2rem;
+  color: #333;
+}
+
+.input-help {
+  color: #666;
+  font-size: 0.9rem;
+  margin-top: 4px;
+  display: block;
+}
+
+.submit-button {
+  background-color: #2196f3;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  width: 100%;
+  margin-top: 20px;
+}
+
+.submit-button:hover {
+  background-color: #1976d2;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Move these styles from Orders.css to App.css */
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #2196f3;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  opacity: 0.6;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Add this to make the list fade in smoothly */
+ul {
+  animation: fadeIn 0.3s ease-in;
 }

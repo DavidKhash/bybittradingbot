@@ -15,35 +15,33 @@ if (!API_KEY || !API_SECRET) {
 
 const app = express();
 app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 /**
  * getSignature
  * Constructs the signature per Bybit V5 requirements.
- * According to the docs the prehash string should be:
- *    preHash = timestamp + API_KEY + recv_window + queryString
- * where queryString is formed by sorting all the query parameters.
  */
-const getSignature = (parameters, timestamp) => {
-  // Extract recv_window and remove any extra spaces (if present)
-  const recvWindow = parameters.recv_window || '';
+const getSignature = (parameters, timestamp, isGet = false) => {
+  let preHash = '';
   
-  // Order the parameters alphanumerically
-  const orderedParams = Object.keys(parameters)
-    .sort()
-    .reduce((obj, key) => {
-      obj[key] = parameters[key];
-      return obj;
-    }, {});
+  if (isGet) {
+    // For GET requests, create query string *without sorting* to preserve insertion order.
+    const queryString = Object.keys(parameters)
+      // .sort() // Remove sorting!
+      .map(key => `${key}=${parameters[key]}`)
+      .join('&');
+    
+    // For GET requests: timestamp + API_KEY + recv_window + queryString
+    preHash = `${timestamp}${API_KEY}${parameters.recv_window}${queryString}`;
+  } else {
+    // For POST requests: timestamp + API_KEY + recv_window + JSON.stringify(parameters)
+    const postBody = JSON.stringify(parameters);
+    preHash = `${timestamp}${API_KEY}${parameters.recv_window}${postBody}`;
+  }
   
-  // Form the query string in the format key1=value1&key2=value2...
-  const queryString = Object.entries(orderedParams)
-    .map(([key, value]) => `${key}=${value}`)
-    .join('&');
+  console.log('Pre-hash string:', preHash); // For debugging
   
-  // Construct the pre-hash string
-  const preHash = `${timestamp}${API_KEY}${recvWindow}${queryString}`;
-  
-  // Create and return the HMAC SHA256 signature
   return crypto.createHmac('sha256', API_SECRET).update(preHash).digest('hex');
 };
 
@@ -55,14 +53,13 @@ app.get('/api/tickers', async (req, res) => {
       recv_window: '5000'
     };
     
-    // Add symbol to params if provided in query
     if (req.query.symbol) {
       params.symbol = req.query.symbol.toUpperCase();
     }
     
-    const signature = getSignature(params, timestamp);
+    const signature = getSignature(params, timestamp, true); // Add true for GET request
     
-    const endpoint = 'https://api.bybit.com/v5/market/tickers';
+    const endpoint = 'https://api-testnet.bybit.com/v5/market/tickers';
     
     const response = await axios.get(endpoint, {
       params: params,
@@ -85,6 +82,165 @@ app.get('/api/tickers', async (req, res) => {
     res.status(500).json({ 
       error: 'Failed to fetch data from Bybit',
       details: error.response ? error.response.data : error.message 
+    });
+  }
+});
+
+// Get account balance
+app.get('/api/balance', async (req, res) => {
+  try {
+    const timestamp = Date.now().toString();
+    const params = {
+      accountType: 'CONTRACT',
+      coin: 'USDT',
+      recv_window: '5000'
+    };
+    
+    const signature = getSignature(params, timestamp, true); // Add true for GET request
+    
+    const response = await axios.get('https://api-testnet.bybit.com/v5/account/wallet-balance', {
+      params: params,
+      headers: {
+        'X-BAPI-API-KEY': API_KEY,
+        'X-BAPI-SIGN': signature,
+        'X-BAPI-TIMESTAMP': timestamp,
+        'X-BAPI-RECV-WINDOW': params.recv_window
+      }
+    });
+    
+    res.json(response.data);
+  } catch (error) {
+    console.error('Error fetching balance:', error);
+    res.status(500).json({ error: 'Failed to fetch balance' });
+  }
+});
+
+// Place order
+app.post('/api/place-order', async (req, res) => {
+  try {
+    console.log('Received request body:', req.body);
+    
+    const timestamp = Date.now().toString();
+    const { symbol, side, type, qty, leverage } = req.body;
+    
+    // Modify symbol to add USDT if not present
+    const orderSymbol = symbol.endsWith('USDT') ? symbol : `${symbol}USDT`;
+    
+    // Place the order
+    const orderParams = {
+      category: 'linear',
+      symbol: orderSymbol,
+      side: side,
+      orderType: type.toUpperCase(),
+      qty: qty.toString(),
+      timeInForce: 'GTC',
+      recv_window: '5000',
+      positionIdx: 0,
+      reduceOnly: false,
+      closeOnTrigger: false
+    };
+    
+    console.log('Placing order with params:', orderParams);
+    
+    const orderSignature = getSignature(orderParams, timestamp);
+    
+    try {
+      const response = await axios.post(
+        'https://api-testnet.bybit.com/v5/order/create',
+        orderParams,
+        {
+          headers: {
+            'X-BAPI-API-KEY': API_KEY,
+            'X-BAPI-SIGN': orderSignature,
+            'X-BAPI-TIMESTAMP': timestamp,
+            'X-BAPI-RECV-WINDOW': orderParams.recv_window,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      console.log('Order response:', response.data);
+      
+      if (response.data.retCode === 0) {
+        res.json(response.data);
+      } else {
+        res.status(400).json({
+          error: 'Order placement failed',
+          details: response.data
+        });
+      }
+    } catch (orderError) {
+      console.error('Order API error:', orderError.response?.data || orderError.message);
+      throw orderError;
+    }
+  } catch (error) {
+    console.error('Order placement error:', error.response?.data || error.message);
+    res.status(500).json({
+      error: 'Failed to place order',
+      details: error.response?.data || error.message,
+      message: error.message
+    });
+  }
+});
+
+// Update the positions endpoint
+app.get('/api/positions', async (req, res) => {
+  try {
+    const timestamp = Date.now().toString();
+    const params = {
+      category: 'linear',
+      settleCoin: 'USDT', // Required for linear positions
+      limit: '50',        // Increased limit to get more positions
+      recv_window: '5000'
+    };
+    
+    console.log('Fetching positions with params:', params);
+    
+    const signature = getSignature(params, timestamp, true);
+    
+    console.log('Generated signature:', signature);
+    
+    const response = await axios.get(
+      'https://api-testnet.bybit.com/v5/position/list',
+      {
+        params: params,
+        headers: {
+          'X-BAPI-API-KEY': API_KEY,
+          'X-BAPI-SIGN': signature,
+          'X-BAPI-TIMESTAMP': timestamp,
+          'X-BAPI-RECV-WINDOW': params.recv_window,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    
+    console.log('Raw positions response:', response.data);
+    
+    if (response.data && response.data.retCode === 0) {
+      // Filter out positions with zero size if needed
+      const activePositions = response.data.result.list.filter(
+        position => parseFloat(position.size) > 0
+      );
+      
+      res.json({
+        ...response.data,
+        result: {
+          ...response.data.result,
+          list: activePositions
+        }
+      });
+    } else {
+      console.error('Invalid positions response:', response.data);
+      res.status(400).json({
+        error: 'Failed to fetch positions',
+        details: response.data
+      });
+    }
+  } catch (error) {
+    console.error('Error fetching positions:', error.response?.data || error.message);
+    res.status(500).json({
+      error: 'Failed to fetch positions',
+      details: error.response?.data || error.message
     });
   }
 });
