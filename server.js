@@ -121,159 +121,72 @@ app.post('/api/place-order', async (req, res) => {
     console.log('Received request body:', req.body);
     
     const timestamp = Date.now().toString();
-    const { symbol, side, type, qty: usdtAmount, leverage } = req.body;
+    const { symbol, side, type, qty, reduceOnly, closeOnTrigger } = req.body;
     
-    // Modify symbol to add USDT if not present
-    const orderSymbol = symbol.endsWith('USDT') ? symbol : `${symbol}USDT`;
+    // If this is a position close (reduceOnly is true)
+    if (reduceOnly) {
+      // First, get the current position to confirm size
+      const positionParams = {
+        category: 'linear',
+        symbol: symbol,
+        recv_window: '5000'
+      };
 
-    // Get instrument info to determine allowed leverage and quantity precision
-    const instrumentParams = {
-      category: 'linear',
-      symbol: orderSymbol,
-      recv_window: '5000'
-    };
-    
-    const instrumentSignature = getSignature(instrumentParams, timestamp, true);
-    
-    const instrumentResponse = await axios.get(
-      'https://api-testnet.bybit.com/v5/market/instruments-info',
-      {
-        params: instrumentParams,
-        headers: {
-          'X-BAPI-API-KEY': API_KEY,
-          'X-BAPI-SIGN': instrumentSignature,
-          'X-BAPI-TIMESTAMP': timestamp,
-          'X-BAPI-RECV-WINDOW': instrumentParams.recv_window
-        }
-      }
-    );
-    
-    if (!instrumentResponse.data?.result?.list?.[0]) {
-      throw new Error('Could not get instrument information');
-    }
-    
-    const instrumentInfo = instrumentResponse.data.result.list[0];
-    const lotSizeFilter = instrumentInfo.lotSizeFilter;
-    const leverageFilter = instrumentInfo.leverageFilter;  // NEW: get leverage filter info
-    const qtyStep = parseFloat(lotSizeFilter.qtyStep);
-    const minOrderQty = parseFloat(lotSizeFilter.minOrderQty);
-    const maxLeverage = parseFloat(leverageFilter.maxLeverage);
-    
-    // Adjust the requested leverage if it exceeds maximum allowed
-    let reqLeverage = parseFloat(leverage);
-    if (reqLeverage > maxLeverage) {
-      console.log(`Requested leverage ${reqLeverage} exceeds maximum allowed ${maxLeverage}. Using max allowed.`);
-      reqLeverage = maxLeverage;
-    }
-    
-    // Set leverage first using the (possibly adjusted) reqLeverage
-    const leverageParams = {
-      category: 'linear',
-      symbol: orderSymbol,
-      buyLeverage: reqLeverage.toString(),
-      sellLeverage: reqLeverage.toString(),
-      recv_window: '5000'
-    };
-    
-    const leverageSignature = getSignature(leverageParams, timestamp);
-    
-    try {
-      const leverageResponse = await axios.post(
-        'https://api-testnet.bybit.com/v5/position/set-leverage',
-        leverageParams,
+      const positionSignature = getSignature(positionParams, timestamp, true);
+      
+      const positionResponse = await axios.get(
+        'https://api-testnet.bybit.com/v5/position/list',
         {
+          params: positionParams,
           headers: {
             'X-BAPI-API-KEY': API_KEY,
-            'X-BAPI-SIGN': leverageSignature,
+            'X-BAPI-SIGN': positionSignature,
             'X-BAPI-TIMESTAMP': timestamp,
-            'X-BAPI-RECV-WINDOW': leverageParams.recv_window,
-            'Content-Type': 'application/json'
+            'X-BAPI-RECV-WINDOW': '5000'
           }
         }
       );
-      
-      console.log('Leverage set response:', leverageResponse.data);
-      
-      if (leverageResponse.data.retCode !== 0) {
-        throw new Error(`Failed to set leverage: ${leverageResponse.data.retMsg}`);
+
+      console.log('Current position response:', positionResponse.data);
+
+      if (!positionResponse.data?.result?.list) {
+        throw new Error('Could not fetch current position');
       }
-    } catch (leverageError) {
-      console.error('Error setting leverage:', leverageError);
-      // Continue with the order even if leverage setting fails
-    }
-    
-    // Get current price
-    const tickerParams = {
-      category: 'linear',
-      symbol: orderSymbol,
-      recv_window: '5000'
-    };
-    
-    const tickerSignature = getSignature(tickerParams, timestamp, true);
-    
-    const tickerResponse = await axios.get(
-      'https://api-testnet.bybit.com/v5/market/tickers',
-      {
-        params: tickerParams,
-        headers: {
-          'X-BAPI-API-KEY': API_KEY,
-          'X-BAPI-SIGN': tickerSignature,
-          'X-BAPI-TIMESTAMP': timestamp,
-          'X-BAPI-RECV-WINDOW': tickerParams.recv_window
-        }
+
+      const currentPosition = positionResponse.data.result.list.find(
+        p => p.symbol === symbol
+      );
+
+      if (!currentPosition) {
+        throw new Error('Position not found');
       }
-    );
-    
-    if (!tickerResponse.data?.result?.list?.[0]?.lastPrice) {
-      throw new Error('Could not get current price for symbol');
-    }
-    
-    const currentPrice = parseFloat(tickerResponse.data.result.list[0].lastPrice);
-    
-    // Calculate the target quantity as a float (desired USDT amount divided by current price)
-    let calculatedQty = parseFloat(usdtAmount) / currentPrice;
-    
-    // Compute the allowed quantities using the lot size step:
-    const floorQty = Math.floor(calculatedQty / qtyStep) * qtyStep;
-    const ceilQty = Math.ceil(calculatedQty / qtyStep) * qtyStep;
-    
-    // Ensure both quantities are not below the minimum order quantity
-    const validFloorQty = floorQty < minOrderQty ? minOrderQty : floorQty;
-    const validCeilQty = ceilQty < minOrderQty ? minOrderQty : ceilQty;
-    
-    // Calculate the absolute differences in USDT value
-    const floorValueDiff = Math.abs(parseFloat(usdtAmount) - validFloorQty * currentPrice);
-    const ceilValueDiff = Math.abs(parseFloat(usdtAmount) - validCeilQty * currentPrice);
-    
-    // Choose the quantity that yields the order value closest to the target USDT amount
-    let finalQty = (floorValueDiff <= ceilValueDiff) ? validFloorQty : validCeilQty;
-    
-    // Format the quantity with the correct precision (based on the lot size step)
-    const decimalPlaces = qtyStep.toString().split('.')[1]?.length || 0;
-    const formattedQty = finalQty.toFixed(decimalPlaces);
-    
-    console.log(`Converting ${usdtAmount} USDT to ${formattedQty} ${symbol} at price ${currentPrice}`);
-    console.log(`Using lot size step: ${qtyStep}, min order qty: ${minOrderQty}`);
-    
-    // Place the order
-    const orderParams = {
-      category: 'linear',
-      symbol: orderSymbol,
-      side: side,
-      orderType: type.toUpperCase(),
-      qty: formattedQty,
-      timeInForce: 'GTC',
-      recv_window: '5000',
-      positionIdx: 0,
-      reduceOnly: false,
-      closeOnTrigger: false
-    };
-    
-    console.log('Placing order with params:', orderParams);
-    
-    const orderSignature = getSignature(orderParams, timestamp);
-    
-    try {
+
+      const positionSize = Math.abs(parseFloat(currentPosition.size));
+      if (positionSize === 0) {
+        return res.json({
+          retCode: 0,
+          message: 'Position already closed'
+        });
+      }
+
+      // Place the closing order with the exact position size
+      const orderParams = {
+        category: 'linear',
+        symbol: symbol,
+        side: currentPosition.side === 'Buy' ? 'Sell' : 'Buy', // opposite of current position
+        orderType: 'Market',
+        qty: positionSize.toString(),
+        timeInForce: 'GTC',
+        positionIdx: 0,
+        reduceOnly: true,
+        closeOnTrigger: true,
+        recv_window: '5000'
+      };
+
+      console.log('Placing close position order with params:', orderParams);
+      
+      const orderSignature = getSignature(orderParams, timestamp);
+      
       const response = await axios.post(
         'https://api-testnet.bybit.com/v5/order/create',
         orderParams,
@@ -287,33 +200,236 @@ app.post('/api/place-order', async (req, res) => {
           }
         }
       );
-      
-      console.log('Order response:', response.data);
+
+      console.log('Close position response:', response.data);
       
       if (response.data.retCode === 0) {
-        res.json({
-          ...response.data,
-          orderDetails: {
-            usdtAmount,
-            calculatedQty: formattedQty,
-            price: currentPrice
+        // Wait a moment for the order to process
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Verify the position is closed
+        const verifyParams = {
+          category: 'linear',
+          symbol: symbol,
+          recv_window: '5000'
+        };
+
+        const verifySignature = getSignature(verifyParams, Date.now().toString(), true);
+        
+        const verifyResponse = await axios.get(
+          'https://api-testnet.bybit.com/v5/position/list',
+          {
+            params: verifyParams,
+            headers: {
+              'X-BAPI-API-KEY': API_KEY,
+              'X-BAPI-SIGN': verifySignature,
+              'X-BAPI-TIMESTAMP': Date.now().toString(),
+              'X-BAPI-RECV-WINDOW': '5000'
+            }
           }
+        );
+
+        const verifyPosition = verifyResponse.data?.result?.list?.find(
+          p => p.symbol === symbol
+        );
+
+        if (verifyPosition && Math.abs(parseFloat(verifyPosition.size)) > 0) {
+          throw new Error('Position not fully closed');
+        }
+
+        res.json({
+          retCode: 0,
+          message: 'Position closed successfully'
         });
       } else {
-        res.status(400).json({
-          error: 'Order placement failed',
-          details: response.data
-        });
+        throw new Error(response.data.retMsg || 'Failed to close position');
       }
-    } catch (orderError) {
-      console.error('Order API error:', orderError.response?.data || orderError.message);
-      throw orderError;
+    } else {
+      // Modify symbol to add USDT if not present
+      const orderSymbol = symbol.endsWith('USDT') ? symbol : `${symbol}USDT`;
+      const reqLeverage = req.body.leverage || '10'; // Default to 10x if not provided
+
+      // Get instrument info to determine allowed leverage and quantity precision
+      const instrumentParams = {
+        category: 'linear',
+        symbol: orderSymbol,
+        recv_window: '5000'
+      };
+      
+      const instrumentSignature = getSignature(instrumentParams, timestamp, true);
+      
+      const instrumentResponse = await axios.get(
+        'https://api-testnet.bybit.com/v5/market/instruments-info',
+        {
+          params: instrumentParams,
+          headers: {
+            'X-BAPI-API-KEY': API_KEY,
+            'X-BAPI-SIGN': instrumentSignature,
+            'X-BAPI-TIMESTAMP': timestamp,
+            'X-BAPI-RECV-WINDOW': instrumentParams.recv_window
+          }
+        }
+      );
+      
+      if (!instrumentResponse.data?.result?.list?.[0]) {
+        throw new Error('Could not get instrument information');
+      }
+      
+      const instrumentInfo = instrumentResponse.data.result.list[0];
+      const lotSizeFilter = instrumentInfo.lotSizeFilter;
+      const leverageFilter = instrumentInfo.leverageFilter;
+      const qtyStep = parseFloat(lotSizeFilter.qtyStep);
+      const minOrderQty = parseFloat(lotSizeFilter.minOrderQty);
+      const maxLeverage = parseFloat(leverageFilter.maxLeverage);
+      
+      // Adjust the requested leverage if it exceeds maximum allowed
+      let finalLeverage = Math.min(parseFloat(reqLeverage), maxLeverage);
+      
+      // Set leverage first
+      const leverageParams = {
+        category: 'linear',
+        symbol: orderSymbol,
+        buyLeverage: finalLeverage.toString(),
+        sellLeverage: finalLeverage.toString(),
+        recv_window: '5000'
+      };
+      
+      const leverageSignature = getSignature(leverageParams, timestamp);
+      
+      try {
+        const leverageResponse = await axios.post(
+          'https://api-testnet.bybit.com/v5/position/set-leverage',
+          leverageParams,
+          {
+            headers: {
+              'X-BAPI-API-KEY': API_KEY,
+              'X-BAPI-SIGN': leverageSignature,
+              'X-BAPI-TIMESTAMP': timestamp,
+              'X-BAPI-RECV-WINDOW': leverageParams.recv_window,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+        
+        console.log('Leverage set response:', leverageResponse.data);
+      } catch (leverageError) {
+        console.error('Error setting leverage:', leverageError);
+        // Continue with the order even if leverage setting fails
+      }
+      
+      // Get current price
+      const tickerParams = {
+        category: 'linear',
+        symbol: orderSymbol,
+        recv_window: '5000'
+      };
+      
+      const tickerSignature = getSignature(tickerParams, timestamp, true);
+      
+      const tickerResponse = await axios.get(
+        'https://api-testnet.bybit.com/v5/market/tickers',
+        {
+          params: tickerParams,
+          headers: {
+            'X-BAPI-API-KEY': API_KEY,
+            'X-BAPI-SIGN': tickerSignature,
+            'X-BAPI-TIMESTAMP': timestamp,
+            'X-BAPI-RECV-WINDOW': tickerParams.recv_window
+          }
+        }
+      );
+      
+      if (!tickerResponse.data?.result?.list?.[0]?.lastPrice) {
+        throw new Error('Could not get current price for symbol');
+      }
+      
+      const currentPrice = parseFloat(tickerResponse.data.result.list[0].lastPrice);
+      
+      // Calculate the target quantity as a float (desired USDT amount divided by current price)
+      let calculatedQty = parseFloat(qty) / currentPrice;
+      
+      // Compute the allowed quantities using the lot size step:
+      const floorQty = Math.floor(calculatedQty / qtyStep) * qtyStep;
+      const ceilQty = Math.ceil(calculatedQty / qtyStep) * qtyStep;
+      
+      // Ensure both quantities are not below the minimum order quantity
+      const validFloorQty = floorQty < minOrderQty ? minOrderQty : floorQty;
+      const validCeilQty = ceilQty < minOrderQty ? minOrderQty : ceilQty;
+      
+      // Calculate the absolute differences in USDT value
+      const floorValueDiff = Math.abs(parseFloat(qty) - validFloorQty * currentPrice);
+      const ceilValueDiff = Math.abs(parseFloat(qty) - validCeilQty * currentPrice);
+      
+      // Choose the quantity that yields the order value closest to the target USDT amount
+      let finalQty = (floorValueDiff <= ceilValueDiff) ? validFloorQty : validCeilQty;
+      
+      // Format the quantity with the correct precision (based on the lot size step)
+      const decimalPlaces = qtyStep.toString().split('.')[1]?.length || 0;
+      const formattedQty = finalQty.toFixed(decimalPlaces);
+      
+      console.log(`Converting ${qty} USDT to ${formattedQty} ${symbol} at price ${currentPrice}`);
+      console.log(`Using lot size step: ${qtyStep}, min order qty: ${minOrderQty}`);
+      
+      // Place the order
+      const orderParams = {
+        category: 'linear',
+        symbol: orderSymbol,
+        side: side,
+        orderType: type.toUpperCase(),
+        qty: formattedQty,
+        timeInForce: 'GTC',
+        recv_window: '5000',
+        positionIdx: 0,
+        reduceOnly: false,
+        closeOnTrigger: false
+      };
+      
+      console.log('Placing order with params:', orderParams);
+      
+      const orderSignature = getSignature(orderParams, timestamp);
+      
+      try {
+        const response = await axios.post(
+          'https://api-testnet.bybit.com/v5/order/create',
+          orderParams,
+          {
+            headers: {
+              'X-BAPI-API-KEY': API_KEY,
+              'X-BAPI-SIGN': orderSignature,
+              'X-BAPI-TIMESTAMP': timestamp,
+              'X-BAPI-RECV-WINDOW': orderParams.recv_window,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+        
+        console.log('Order response:', response.data);
+        
+        if (response.data.retCode === 0) {
+          res.json({
+            ...response.data,
+            orderDetails: {
+              qty,
+              calculatedQty: formattedQty,
+              price: currentPrice
+            }
+          });
+        } else {
+          res.status(400).json({
+            error: 'Order placement failed',
+            details: response.data
+          });
+        }
+      } catch (orderError) {
+        console.error('Order API error:', orderError.response?.data || orderError.message);
+        throw orderError;
+      }
     }
   } catch (error) {
-    console.error('Order placement error:', error.response?.data || error.message);
+    console.error('Order placement error:', error);
     res.status(500).json({
       error: 'Failed to place order',
-      details: error.response?.data || error.message,
+      details: error.message,
       message: error.message
     });
   }

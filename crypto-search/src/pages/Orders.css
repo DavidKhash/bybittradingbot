@@ -939,4 +939,31 @@ input:not(:checked) ~ .refresh-buttons {
 
 .sort-group .toggle-label {
   white-space: nowrap;
+}
+
+.sell-button-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid #eee;
+}
+
+.sell-button {
+  background-color: #ef5350;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.3s ease;
+}
+
+.sell-button:hover {
+  background-color: #d32f2f;
+}
+
+.sell-button:active {
+  transform: translateY(1px);
 } 

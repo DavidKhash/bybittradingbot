@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import '../App.css';
 import TradeModal from '../components/TradeModal';
+import Toast from '../components/Toast';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 function Home() {
   const [query, setQuery] = useState('');
@@ -11,6 +13,8 @@ function Home() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [orderDetails, setOrderDetails] = useState(null);
   const [accountBalance, setAccountBalance] = useState(null);
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
 
   useEffect(() => {
     if (query.trim() === '') {
@@ -126,39 +130,55 @@ function Home() {
 
   const handleOrderConfirm = async (password) => {
     try {
-      const orderPayload = {
-        ...orderDetails,
-        password
+      setIsPlacingOrder(true); // Show loading spinner
+      const storedLeverage = localStorage.getItem('tradeLeverage') || '10';
+      const storedAmount = localStorage.getItem('tradeAmount') || '100';
+
+      const orderParams = {
+        symbol: selectedCoin.symbol,
+        side: 'Buy',
+        type: 'Market',
+        qty: storedAmount,
+        leverage: storedLeverage,
+        positionIdx: 0,
+        timeInForce: 'GTC',
+        password: password
       };
-      
-      console.log('Sending order payload:', orderPayload);
-      
+
       const response = await fetch('http://159.65.25.174:4001/api/place-order', {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(orderPayload)
+        body: JSON.stringify(orderParams)
       });
 
       const data = await response.json();
-      console.log('Order response:', data);
       
       if (response.ok && data.retCode === 0) {
-        alert('Order placed successfully!');
+        setToast({
+          show: true,
+          message: 'Order placed successfully!',
+          type: 'success'
+        });
+        setIsModalOpen(false);
       } else {
-        const errorMessage = data.error ? 
-          `${data.error}: ${JSON.stringify(data.details)}` : 
-          `Order failed: ${JSON.stringify(data)}`;
-        alert(errorMessage);
-        console.error('Order placement failed:', data);
+        setToast({
+          show: true,
+          message: `Order failed: ${data.message || 'Unknown error'}`,
+          type: 'error'
+        });
       }
     } catch (error) {
       console.error('Error placing order:', error);
-      alert(`Failed to place order: ${error.message}`);
+      setToast({
+        show: true,
+        message: `Failed to place order: ${error.message}`,
+        type: 'error'
+      });
     } finally {
-      setIsModalOpen(false);
+      setIsPlacingOrder(false); // Hide loading spinner
     }
   };
 
@@ -307,6 +327,16 @@ function Home() {
         symbol={orderDetails?.symbol}
         orderDetails={orderDetails}
       />
+
+      {isPlacingOrder && <LoadingSpinner />}
+
+      {toast.show && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast({ ...toast, show: false })}
+        />
+      )}
     </div>
   );
 }

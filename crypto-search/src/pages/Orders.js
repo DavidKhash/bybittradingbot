@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import PullToRefresh from 'react-pull-to-refresh';
 import '../App.css';
 import './Orders.css';
+import ConfirmSellModal from '../components/ConfirmSellModal';
+import Toast from '../components/Toast';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 // Helper function to format numbers to exactly two decimals
 const formatTwoDecimals = (num) => {
@@ -34,6 +37,10 @@ function Orders() {
   });
   const [tempInputValue, setTempInputValue] = useState('');
   const [refreshInterval, setRefreshInterval] = useState(5000);
+  const [sellModalOpen, setSellModalOpen] = useState(false);
+  const [selectedPosition, setSelectedPosition] = useState(null);
+  const [isClosing, setIsClosing] = useState(false);
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
 
   const getCryptoIcon = (symbol) => {
     const baseSymbol = symbol.replace(/USDT$|USD$/, '').toLowerCase();
@@ -240,6 +247,68 @@ function Orders() {
     if (autoRefreshEnabled) {
       setRefreshInterval(interval);
     }
+  };
+
+  const handleSell = async () => {
+    try {
+      setIsClosing(true); // Show loading spinner
+      
+      const orderParams = {
+        symbol: selectedPosition.symbol,
+        side: selectedPosition.side === 'Buy' ? 'Sell' : 'Buy',
+        type: 'Market',
+        qty: Math.abs(parseFloat(selectedPosition.size)).toString(),
+        positionIdx: 0,
+        timeInForce: 'GTC',
+        reduceOnly: true,
+        closeOnTrigger: true
+      };
+
+      console.log('Sending close position order:', orderParams);
+
+      const response = await fetch('http://159.65.25.174:4001/api/place-order', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(orderParams)
+      });
+
+      const data = await response.json();
+      
+      if (response.ok && data.retCode === 0) {
+        setToast({
+          show: true,
+          message: 'Position closed successfully!',
+          type: 'success'
+        });
+        fetchPositions(true);
+      } else {
+        setToast({
+          show: true,
+          message: `Failed to close position: ${data.message || 'Unknown error'}`,
+          type: 'error'
+        });
+      }
+    } catch (error) {
+      console.error('Error closing position:', error);
+      setToast({
+        show: true,
+        message: `Error closing position: ${error.message}`,
+        type: 'error'
+      });
+    } finally {
+      setIsClosing(false); // Hide loading spinner
+      setSellModalOpen(false);
+      setSelectedPosition(null);
+    }
+  };
+
+  const handleSellClick = (e, position) => {
+    e.stopPropagation(); // Prevent card expansion when clicking sell
+    setSelectedPosition(position);
+    setSellModalOpen(true);
   };
 
   return (
@@ -494,6 +563,15 @@ function Orders() {
                         {formatTwoDecimals((parseFloat(position.unrealisedPnl) / parseFloat(position.positionValue)) * 100)}%
                       </span>
                     </div>
+                    
+                    <div className="sell-button-container">
+                      <button 
+                        className="sell-button"
+                        onClick={(e) => handleSellClick(e, position)}
+                      >
+                        Close Position
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -532,6 +610,28 @@ function Orders() {
           </div>
         </div>
       </div>
+
+      <ConfirmSellModal
+        isOpen={sellModalOpen}
+        onClose={() => {
+          setSellModalOpen(false);
+          setSelectedPosition(null);
+        }}
+        onConfirm={handleSell}
+        position={selectedPosition}
+      />
+
+      {/* Add loading spinner */}
+      {isClosing && <LoadingSpinner />}
+
+      {/* Add toast notifications */}
+      {toast.show && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast({ ...toast, show: false })}
+        />
+      )}
     </div>
   );
 }
