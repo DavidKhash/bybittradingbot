@@ -45,6 +45,11 @@ function Transactions() {
     placeholder: ''
   });
   const [tempInputValue, setTempInputValue] = useState('');
+  const [dateRange, setDateRange] = useState({
+    startDate: '',
+    endDate: ''
+  });
+  const [showDateFilter, setShowDateFilter] = useState(false);
 
   const fetchTransactions = async (isManual = false) => {
     try {
@@ -183,10 +188,110 @@ function Transactions() {
     return (parseFloat(pnl) / parseFloat(entryValue)) * 100;
   };
 
+  const getFilteredTransactions = () => {
+    let filtered = [...transactions];
+
+    // Apply existing filters first
+    if (pnlFilter.type !== 'none' && pnlFilter.value !== '') {
+      const value = parseFloat(pnlFilter.value);
+      filtered = filtered.filter(t => {
+        const pnl = parseFloat(t.closedPnl);
+        return pnlFilter.type === 'greater' ? pnl > value : pnl < value;
+      });
+    }
+
+    if (roiFilter.type !== 'none' && roiFilter.value !== '') {
+      const value = parseFloat(roiFilter.value);
+      filtered = filtered.filter(t => {
+        const roi = (parseFloat(t.closedPnl) / parseFloat(t.cumEntryValue)) * 100;
+        return roiFilter.type === 'greater' ? roi > value : roi < value;
+      });
+    }
+
+    // Apply date range filter
+    if (dateRange.startDate && dateRange.endDate) {
+      const start = new Date(dateRange.startDate);
+      const end = new Date(dateRange.endDate);
+      end.setHours(23, 59, 59); // Include the entire end date
+
+      filtered = filtered.filter(t => {
+        // Convert timestamp to milliseconds if it's in seconds
+        const timestamp = t.createdTime.toString().length === 10 
+          ? parseInt(t.createdTime) * 1000 
+          : parseInt(t.createdTime);
+        
+        const txDate = new Date(timestamp);
+        
+        // Debug logging
+        console.log('Transaction date:', txDate);
+        console.log('Start date:', start);
+        console.log('End date:', end);
+        
+        return txDate >= start && txDate <= end;
+      });
+    }
+
+    // Sort the filtered results by date (newest first)
+    filtered.sort((a, b) => {
+      const timestampA = a.createdTime.toString().length === 10 
+        ? parseInt(a.createdTime) * 1000 
+        : parseInt(a.createdTime);
+      const timestampB = b.createdTime.toString().length === 10 
+        ? parseInt(b.createdTime) * 1000 
+        : parseInt(b.createdTime);
+      return timestampB - timestampA;
+    });
+
+    // Return only the most recent 30 transactions
+    return filtered.slice(0, 30);
+  };
+
   return (
     <div className="App">
       <h1>Closed Positions</h1>
       <div className="filters-container">
+        <div className="date-filter-container">
+          <button 
+            className="date-filter-toggle"
+            onClick={() => setShowDateFilter(!showDateFilter)}
+          >
+            {showDateFilter ? 'Hide Date Filter' : 'Show Date Filter'}
+          </button>
+          
+          {showDateFilter && (
+            <div className="date-range-inputs">
+              <div className="date-input-group">
+                <label>From:</label>
+                <input
+                  type="date"
+                  value={dateRange.startDate}
+                  onChange={(e) => setDateRange(prev => ({
+                    ...prev,
+                    startDate: e.target.value
+                  }))}
+                />
+              </div>
+              <div className="date-input-group">
+                <label>To:</label>
+                <input
+                  type="date"
+                  value={dateRange.endDate}
+                  onChange={(e) => setDateRange(prev => ({
+                    ...prev,
+                    endDate: e.target.value
+                  }))}
+                />
+              </div>
+              <button
+                className="clear-dates-button"
+                onClick={() => setDateRange({ startDate: '', endDate: '' })}
+              >
+                Clear Dates
+              </button>
+            </div>
+          )}
+        </div>
+
         <div className="filter-group">
           <div className="filter-row">
             <span className="toggle-label">Time Period:</span>
@@ -269,110 +374,112 @@ function Transactions() {
         ) : error ? (
           <p className="error">{error}</p>
         ) : transactions.length > 0 ? (
-          <div className="transactions-container">
-            {filterTransactions(transactions).map((transaction) => {
-              const transactionId = `${transaction.symbol}-${transaction.createdTime}`;
-              const isExpanded = expandedCards[transactionId];
-              const pnl = parseFloat(transaction.closedPnl);
-              
-              return (
-                <div 
-                  key={transactionId} 
-                  className={`transaction-card ${!isExpanded ? 'collapsed' : ''}`}
-                  onClick={() => toggleCard(transactionId)}
-                >
-                  <div className="transaction-summary">
-                    <div className="transaction-summary-info">
-                      <div className="symbol-container">
-                        <img 
-                          src={getCryptoIcon(transaction.symbol)}
-                          alt={transaction.symbol}
-                          className="coin-icon"
-                          onError={handleIconError}
-                        />
-                        <h2>{transaction.symbol}</h2>
+          <>
+            <div className="transactions-container">
+              {getFilteredTransactions().map((transaction) => {
+                const transactionId = `${transaction.symbol}-${transaction.createdTime}`;
+                const isExpanded = expandedCards[transactionId];
+                const pnl = parseFloat(transaction.closedPnl);
+                
+                return (
+                  <div 
+                    key={transactionId} 
+                    className={`transaction-card ${!isExpanded ? 'collapsed' : ''}`}
+                    onClick={() => toggleCard(transactionId)}
+                  >
+                    <div className="transaction-summary">
+                      <div className="transaction-summary-info">
+                        <div className="symbol-container">
+                          <img 
+                            src={getCryptoIcon(transaction.symbol)}
+                            alt={transaction.symbol}
+                            className="coin-icon"
+                            onError={handleIconError}
+                          />
+                          <h2>{transaction.symbol}</h2>
+                        </div>
+                        
+                        <span className={`position-side ${transaction.side.toLowerCase()}`}>
+                          {transaction.side}
+                        </span>
+
+                        <div className="transaction-quick-stats">
+                          <div className="quick-stat">
+                            <span className="stat-label">PNL</span>
+                            <span className={`value ${pnl >= 0 ? 'positive' : 'negative'}`} 
+                                  style={{ 
+                                    background: pnl >= 0 ? 'rgba(46, 125, 50, 0.1)' : 'rgba(198, 40, 40, 0.1)',
+                                    color: pnl >= 0 ? '#2e7d32' : '#c62828'
+                                  }}>
+                              ${formatTwoDecimals(pnl)}
+                            </span>
+                          </div>
+                          <div className="quick-stat">
+                            <span className="stat-label">ROI</span>
+                            <span className={`value ${pnl >= 0 ? 'positive' : 'negative'}`}
+                                  style={{ 
+                                    background: pnl >= 0 ? 'rgba(46, 125, 50, 0.1)' : 'rgba(198, 40, 40, 0.1)',
+                                    color: pnl >= 0 ? '#2e7d32' : '#c62828'
+                                  }}>
+                              {formatTwoDecimals(calculateROI(pnl, transaction.cumEntryValue))}%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button 
+                        className={`expand-button ${isExpanded ? 'expanded' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleCard(transactionId);
+                        }}
+                      >
+                        ▼
+                      </button>
+                    </div>
+                    
+                    <div className="transaction-details">
+                      <div className="detail-row">
+                        <span className="label">Entry Price:</span>
+                        <span className="value">${formatFourDecimals(transaction.avgEntryPrice)}</span>
                       </div>
                       
-                      <span className={`position-side ${transaction.side.toLowerCase()}`}>
-                        {transaction.side}
-                      </span>
-
-                      <div className="transaction-quick-stats">
-                        <div className="quick-stat">
-                          <span className="stat-label">PNL</span>
-                          <span className={`value ${pnl >= 0 ? 'positive' : 'negative'}`} 
-                                style={{ 
-                                  background: pnl >= 0 ? 'rgba(46, 125, 50, 0.1)' : 'rgba(198, 40, 40, 0.1)',
-                                  color: pnl >= 0 ? '#2e7d32' : '#c62828'
-                                }}>
-                            ${formatTwoDecimals(pnl)}
-                          </span>
-                        </div>
-                        <div className="quick-stat">
-                          <span className="stat-label">ROI</span>
-                          <span className={`value ${pnl >= 0 ? 'positive' : 'negative'}`}
-                                style={{ 
-                                  background: pnl >= 0 ? 'rgba(46, 125, 50, 0.1)' : 'rgba(198, 40, 40, 0.1)',
-                                  color: pnl >= 0 ? '#2e7d32' : '#c62828'
-                                }}>
-                            {formatTwoDecimals(calculateROI(pnl, transaction.cumEntryValue))}%
-                          </span>
-                        </div>
+                      <div className="detail-row">
+                        <span className="label">Exit Price:</span>
+                        <span className="value">${formatFourDecimals(transaction.avgExitPrice)}</span>
+                      </div>
+                      
+                      <div className="detail-row">
+                        <span className="label">Position Value:</span>
+                        <span className="value">${formatTwoDecimals(transaction.cumEntryValue)}</span>
+                      </div>
+                      
+                      <div className="detail-row">
+                        <span className="label">Closed PNL:</span>
+                        <span className={`value ${pnl >= 0 ? 'positive' : 'negative'}`}>
+                          ${formatTwoDecimals(pnl)}
+                        </span>
+                      </div>
+                      
+                      <div className="detail-row">
+                        <span className="label">ROI:</span>
+                        <span className={`value ${pnl >= 0 ? 'positive' : 'negative'}`}>
+                          {formatTwoDecimals(calculateROI(pnl, transaction.cumEntryValue))}%
+                        </span>
+                      </div>
+                      
+                      <div className="detail-row">
+                        <span className="label">Close Time:</span>
+                        <span className="value date-value">
+                          {formatDate(transaction.updatedTime)}
+                        </span>
                       </div>
                     </div>
-
-                    <button 
-                      className={`expand-button ${isExpanded ? 'expanded' : ''}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleCard(transactionId);
-                      }}
-                    >
-                      ▼
-                    </button>
                   </div>
-                  
-                  <div className="transaction-details">
-                    <div className="detail-row">
-                      <span className="label">Entry Price:</span>
-                      <span className="value">${formatFourDecimals(transaction.avgEntryPrice)}</span>
-                    </div>
-                    
-                    <div className="detail-row">
-                      <span className="label">Exit Price:</span>
-                      <span className="value">${formatFourDecimals(transaction.avgExitPrice)}</span>
-                    </div>
-                    
-                    <div className="detail-row">
-                      <span className="label">Position Value:</span>
-                      <span className="value">${formatTwoDecimals(transaction.cumEntryValue)}</span>
-                    </div>
-                    
-                    <div className="detail-row">
-                      <span className="label">Closed PNL:</span>
-                      <span className={`value ${pnl >= 0 ? 'positive' : 'negative'}`}>
-                        ${formatTwoDecimals(pnl)}
-                      </span>
-                    </div>
-                    
-                    <div className="detail-row">
-                      <span className="label">ROI:</span>
-                      <span className={`value ${pnl >= 0 ? 'positive' : 'negative'}`}>
-                        {formatTwoDecimals(calculateROI(pnl, transaction.cumEntryValue))}%
-                      </span>
-                    </div>
-                    
-                    <div className="detail-row">
-                      <span className="label">Close Time:</span>
-                      <span className="value date-value">
-                        {formatDate(transaction.updatedTime)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          </>
         ) : (
           <p className="no-transactions">No closed positions</p>
         )}
