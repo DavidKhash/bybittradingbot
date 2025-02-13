@@ -945,8 +945,6 @@ input:not(:checked) ~ .refresh-buttons {
   display: flex;
   justify-content: center;
   margin-top: 15px;
-  padding-top: 15px;
-  border-top: 1px solid #eee;
 }
 
 .sell-button {
@@ -958,6 +956,8 @@ input:not(:checked) ~ .refresh-buttons {
   cursor: pointer;
   font-weight: 500;
   transition: background-color 0.3s ease;
+  width: 100%;
+  margin-bottom: 15px;
 }
 
 .sell-button:hover {
@@ -966,4 +966,8 @@ input:not(:checked) ~ .refresh-buttons {
 
 .sell-button:active {
   transform: translateY(1px);
-} 
+}
+
+.detail-row:last-of-type {
+  margin-bottom: 15px;
+}

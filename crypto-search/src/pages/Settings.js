@@ -22,32 +22,46 @@ function Settings() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (tradePassword !== confirmPassword) {
-      setMessage('Passwords do not match!');
-      return;
-    }
     
     // Validate trade amount
-    const amount = parseFloat(tradeAmount);
-    if (isNaN(amount) || amount <= 0) {
-      setMessage('Please enter a valid trade amount');
+    if (tradeAmount && (isNaN(tradeAmount) || parseFloat(tradeAmount) <= 0)) {
+      setMessage('Trade amount must be a positive number');
       return;
     }
 
     // Validate leverage
-    const leverageNum = parseInt(leverage);
-    if (isNaN(leverageNum) || leverageNum < 1 || leverageNum > 100) {
-      setMessage('Leverage must be between 1 and 100');
+    if (leverage && (isNaN(leverage) || parseFloat(leverage) <= 0)) {
+      setMessage('Leverage must be a positive number');
       return;
     }
-    
-    // Store settings in localStorage
+
+    // Validate password if provided
+    if (tradePassword || confirmPassword) {
+      if (tradePassword.length < 4) {
+        setMessage('Password must be at least 4 characters long');
+        return;
+      }
+
+      if (tradePassword !== confirmPassword) {
+        setMessage('Passwords do not match');
+        return;
+      }
+    }
+
+    // Save settings
+    if (tradeAmount) {
+      localStorage.setItem('tradeAmount', tradeAmount);
+    }
+    if (leverage) {
+      localStorage.setItem('tradeLeverage', leverage);
+    }
     if (tradePassword) {
       localStorage.setItem('tradePassword', tradePassword);
     }
-    localStorage.setItem('tradeAmount', tradeAmount);
-    localStorage.setItem('tradeLeverage', leverage);
+
     setMessage('Settings saved successfully!');
+    
+    // Clear password fields after saving
     setTradePassword('');
     setConfirmPassword('');
   };
@@ -65,27 +79,21 @@ function Settings() {
                 type="number"
                 value={tradeAmount}
                 onChange={(e) => setTradeAmount(e.target.value)}
-                required
-                min="0"
-                step="0.01"
-                placeholder="Enter amount in USDT"
+                placeholder="Enter trade amount"
+                step="any"
               />
-              <small className="input-help">Amount to use for each trade</small>
             </div>
 
             <div className="form-group">
-              <label>Leverage (1-100x):</label>
+              <label>Leverage:</label>
               <input
                 type="number"
                 value={leverage}
                 onChange={(e) => setLeverage(e.target.value)}
-                required
+                placeholder="Enter leverage (e.g., 1, 2, 5, 10)"
                 min="1"
-                max="100"
-                step="1"
-                placeholder="Enter leverage (1-100x)"
+                step="any"
               />
-              <small className="input-help">Cross margin leverage for trades</small>
             </div>
           </div>
 
@@ -97,7 +105,7 @@ function Settings() {
                 type="password"
                 value={tradePassword}
                 onChange={(e) => setTradePassword(e.target.value)}
-                minLength="6"
+                minLength="4"
                 placeholder="Leave blank to keep current password"
               />
             </div>
@@ -107,7 +115,7 @@ function Settings() {
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                minLength="6"
+                minLength="4"
                 placeholder="Leave blank to keep current password"
               />
             </div>
