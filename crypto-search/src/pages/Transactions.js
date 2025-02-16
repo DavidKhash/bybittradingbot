@@ -58,7 +58,7 @@ function Transactions() {
       }
       setError(null);
       
-      const response = await fetch('http://159.65.25.174:4001/api/v5/position/closed-pnl?category=linear&limit=50', {
+      const response = await fetch('http://165.232.33.201:4001/api/v5/position/closed-pnl?category=linear&limit=50', {
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json'

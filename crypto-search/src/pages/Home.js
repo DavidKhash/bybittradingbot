@@ -27,7 +27,7 @@ function Home() {
       setError(null);
       try {
         // Fetch all spot tickers instead of a specific symbol
-        const response = await fetch(`http://159.65.25.174:4001/api/tickers?category=spot`, {
+        const response = await fetch(`http://165.232.33.201:4001/api/tickers?category=spot`, {
           method: 'GET',
           headers: {
             'Accept': 'application/json',
@@ -83,7 +83,7 @@ function Home() {
 
   const fetchAccountBalance = async () => {
     try {
-      const response = await fetch('http://159.65.25.174:4001/api/balance', {
+      const response = await fetch('http://165.232.33.201:4001/api/balance', {
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json'
@@ -145,7 +145,7 @@ function Home() {
         password: password
       };
 
-      const response = await fetch('http://159.65.25.174:4001/api/place-order', {
+      const response = await fetch('http://165.232.33.201:4001/api/place-order', {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
