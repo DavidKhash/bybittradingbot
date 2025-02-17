@@ -58,7 +58,7 @@ function Transactions() {
       }
       setError(null);
       
-      const response = await fetch('https://ecommerzz.com/api/v5/position/closed-pnl?category=linear&limit=50', {
+      const response = await fetch('https://mybybitbot.com/api/v5/position/closed-pnl?category=linear&limit=50', {
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json'

@@ -544,8 +544,8 @@ app.get('/api/v5/position/closed-pnl', async (req, res) => {
 
 // Add HTTPS options
 const httpsOptions = {
-  key: fs.readFileSync('/etc/letsencrypt/live/ecommerzz.com/privkey.pem'),
-  cert: fs.readFileSync('/etc/letsencrypt/live/ecommerzz.com/fullchain.pem')
+  key: fs.readFileSync('/etc/letsencrypt/live/mybybitbot.com/privkey.pem'),
+  cert: fs.readFileSync('/etc/letsencrypt/live/mybybitbot.com/fullchain.pem')
 };
 
 const PORT = 4001;

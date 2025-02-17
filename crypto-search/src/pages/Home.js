@@ -27,7 +27,7 @@ function Home() {
       setError(null);
       try {
         // Fetch all spot tickers instead of a specific symbol
-        const response = await fetch(`https://ecommerzz.com/api/tickers?category=spot`, {
+        const response = await fetch(`https://mybybitbot.com/api/tickers?category=spot`, {
           method: 'GET',
           headers: {
             'Accept': 'application/json',
@@ -83,7 +83,7 @@ function Home() {
 
   const fetchAccountBalance = async () => {
     try {
-      const response = await fetch('https://ecommerzz.com/api/balance', {
+      const response = await fetch('https://mybybitbot.com/api/balance', {
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json'
@@ -145,7 +145,7 @@ function Home() {
         password: password
       };
 
-      const response = await fetch('https://ecommerzz.com/api/place-order', {
+      const response = await fetch('https://mybybitbot.com/api/place-order', {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
