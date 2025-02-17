@@ -1,5 +1,5 @@
 # Stop existing process if running
-pm2 stop bybit-bot
+pm2 stop bybitbot
 
 # Start with ecosystem file
 pm2 start ecosystem.config.js
@@ -11,16 +11,16 @@ pm2 save
 pm2 list
 
 # View logs
-pm2 logs bybit-bot
+pm2 logs bybitbot
 
 # Restart the server
-pm2 restart bybit-bot
+pm2 restart bybitbot
 
 # Stop the server
-pm2 stop bybit-bot
+pm2 stop bybitbot
 
 # View detailed information
-pm2 show bybit-bot
+pm2 show bybitbot
 
 # Monitor CPU/Memory
 pm2 monit
