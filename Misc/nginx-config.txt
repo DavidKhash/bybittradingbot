@@ -1,5 +1,11 @@
 sudo nano /etc/nginx/sites-available/mybybitbot.com
 
+# Test configuration
+sudo nginx -t
+
+# If test passes, reload Nginx
+sudo systemctl reload nginx
+
 # Define upstream before server block
 upstream node_backend {
     server 127.0.0.1:4001;
@@ -8,6 +14,13 @@ upstream node_backend {
 map $request_method $cors_method {
     OPTIONS 'GET, POST, OPTIONS';
     default $request_method;
+}
+
+# Add map for CORS origin
+map $http_origin $cors_origin {
+    default "";
+    "https://bybitbot.netlify.app" "$http_origin";
+    "http://localhost:3000" "$http_origin";
 }
 
 server {
@@ -25,7 +38,7 @@ server {
     # Handle preflight requests
     location / {
         if ($request_method = 'OPTIONS') {
-            add_header 'Access-Control-Allow-Origin' 'https://bybitbot.netlify.app' always;
+            add_header 'Access-Control-Allow-Origin' $cors_origin always;
             add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS' always;
             add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Accept,Origin' always;
             add_header 'Access-Control-Max-Age' 1728000;
@@ -35,7 +48,7 @@ server {
         }
 
         # CORS headers for all other requests
-        add_header 'Access-Control-Allow-Origin' 'https://bybitbot.netlify.app' always;
+        add_header 'Access-Control-Allow-Origin' $cors_origin always;
         add_header 'Access-Control-Allow-Methods' $cors_method always;
         add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Accept,Origin' always;
         add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range' always;
