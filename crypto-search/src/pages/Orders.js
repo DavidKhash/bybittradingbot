@@ -84,7 +84,7 @@ function Orders() {
       }
       setError(null);
       
-      const response = await fetch('http://165.232.33.201:4001/api/positions', {
+      const response = await fetch('https://ecommerzz.com/api/positions', {
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json'
@@ -266,7 +266,7 @@ function Orders() {
 
       console.log('Sending close position order:', orderParams);
 
-      const response = await fetch('http://165.232.33.201:4001/api/place-order', {
+      const response = await fetch('https://ecommerzz.com/api/place-order', {
         method: 'POST',
         headers: {
           'Accept': 'application/json',

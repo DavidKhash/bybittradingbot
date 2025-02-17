@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const crypto = require('crypto');
+const https = require('https');
+const fs = require('fs');
 require('dotenv').config();
 
 // Get API credentials from environment variables
@@ -14,7 +16,6 @@ if (!API_KEY || !API_SECRET) {
 }
 
 const app = express();
-app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -541,5 +542,14 @@ app.get('/api/v5/position/closed-pnl', async (req, res) => {
   }
 });
 
+// Add HTTPS options
+const httpsOptions = {
+  key: fs.readFileSync('/etc/letsencrypt/live/ecommerzz.com/privkey.pem'),
+  cert: fs.readFileSync('/etc/letsencrypt/live/ecommerzz.com/fullchain.pem')
+};
+
 const PORT = 4001;
-app.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
+// Create HTTPS server
+https.createServer(httpsOptions, app).listen(PORT, '127.0.0.1', () => {
+  console.log(`Server running on port ${PORT}`);
+});

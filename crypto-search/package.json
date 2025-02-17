@@ -4,6 +4,8 @@
   "private": true,
   "dependencies": {
     "cra-template": "1.2.0",
+    "fs": "^0.0.1-security",
+    "https": "^1.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-pull-to-refresh": "^2.0.1",
