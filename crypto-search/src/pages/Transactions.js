@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import PullToRefresh from 'react-pull-to-refresh';
 import './Transactions.css';
+import { truncateTicker, isTickerTruncated } from '../utils/formatters';
 
 const formatTwoDecimals = (num) => {
   return parseFloat(num).toLocaleString(undefined, {
@@ -396,7 +397,12 @@ function Transactions() {
                             className="coin-icon"
                             onError={handleIconError}
                           />
-                          <h2>{transaction.symbol}</h2>
+                          <div className="symbol-text">
+                            <h2>{truncateTicker(transaction.symbol)}</h2>
+                            {isExpanded && isTickerTruncated(transaction.symbol) && (
+                              <span className="full-ticker">{transaction.symbol}</span>
+                            )}
+                          </div>
                         </div>
                         
                         <span className={`position-side ${transaction.side.toLowerCase()}`}>

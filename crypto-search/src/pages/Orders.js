@@ -5,6 +5,7 @@ import './Orders.css';
 import ConfirmSellModal from '../components/ConfirmSellModal';
 import Toast from '../components/Toast';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { truncateTicker, isTickerTruncated } from '../utils/formatters';
 
 // Helper function to format numbers to exactly two decimals
 const formatTwoDecimals = (num) => {
@@ -251,57 +252,57 @@ function Orders() {
 
   const handleSell = async () => {
     try {
-      setIsClosing(true); // Show loading spinner
+      setIsClosing(true);
       
-      const orderParams = {
+      console.log('Sending close position order:', {
         symbol: selectedPosition.symbol,
-        side: selectedPosition.side === 'Buy' ? 'Sell' : 'Buy',
+        side: 'Sell',
         type: 'Market',
-        qty: Math.abs(parseFloat(selectedPosition.size)).toString(),
-        positionIdx: 0,
-        timeInForce: 'GTC',
-        reduceOnly: true,
-        closeOnTrigger: true
-      };
+        qty: selectedPosition.size,
+        positionIdx: 0
+      });
 
-      console.log('Sending close position order:', orderParams);
-
-      const response = await fetch('https://mybybitbot.com/api/place-order', {
+      // Changed from /api/place-order to /api/close-position
+      const response = await fetch('https://mybybitbot.com/api/close-position', {
         method: 'POST',
         headers: {
-          'Accept': 'application/json',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(orderParams)
+        body: JSON.stringify({
+          symbol: selectedPosition.symbol,
+          qty: selectedPosition.size
+        })
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to close position');
+      }
 
       const data = await response.json();
       
-      if (response.ok && data.retCode === 0) {
+      if (data.retCode === 0) {
         setToast({
           show: true,
           message: 'Position closed successfully!',
           type: 'success'
         });
-        fetchPositions(true);
+        setSellModalOpen(false);
+        setSelectedPosition(null);
+        // Refresh positions after closing
+        handleRefresh();
       } else {
-        setToast({
-          show: true,
-          message: `Failed to close position: ${data.message || 'Unknown error'}`,
-          type: 'error'
-        });
+        throw new Error(data.retMsg || 'Failed to close position');
       }
     } catch (error) {
       console.error('Error closing position:', error);
       setToast({
         show: true,
-        message: `Error closing position: ${error.message}`,
+        message: `Failed to close position: ${error.message}`,
         type: 'error'
       });
     } finally {
-      setIsClosing(false); // Hide loading spinner
-      setSellModalOpen(false);
-      setSelectedPosition(null);
+      setIsClosing(false);
     }
   };
 
@@ -483,7 +484,12 @@ function Orders() {
                           className="coin-icon"
                           onError={handleIconError}
                         />
-                        <h2>{position.symbol}</h2>
+                        <div className="symbol-text">
+                          <h2>{truncateTicker(position.symbol)}</h2>
+                          {isExpanded && isTickerTruncated(position.symbol) && (
+                            <span className="full-ticker">{position.symbol}</span>
+                          )}
+                        </div>
                       </div>
                       
                       <span className={`position-side ${position.side.toLowerCase()}`}>

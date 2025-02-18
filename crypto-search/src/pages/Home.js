@@ -12,9 +12,8 @@ function Home() {
   const [selectedCoin, setSelectedCoin] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [orderDetails, setOrderDetails] = useState(null);
-  const [accountBalance, setAccountBalance] = useState(null);
-  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
 
   useEffect(() => {
     if (query.trim() === '') {
@@ -76,99 +75,169 @@ function Home() {
     return () => clearTimeout(delayDebounceFn);
   }, [query]);
 
-  useEffect(() => {
-    // Fetch account balance when component mounts
-    fetchAccountBalance();
-  }, []);
-
-  const fetchAccountBalance = async () => {
+  const handlePlaceOrder = async (symbol) => {
     try {
-      const response = await fetch('https://mybybitbot.com/api/balance', {
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
-      });
-      const data = await response.json();
-      if (data.result && data.result.list) {
-        setAccountBalance(data.result.list[0].totalWalletBalance);
+      // Check if symbol is valid first
+      const checkResponse = await fetch(`https://mybybitbot.com/api/check-symbol?symbol=${symbol}`);
+      const checkData = await checkResponse.json();
+      
+      if (!checkData.valid) {
+        setToast({
+          show: true,
+          message: 'This cryptocurrency is not available for trading',
+          type: 'error'
+        });
+        return;
       }
+
+      const tradeAmount = localStorage.getItem('tradeAmount');
+      const tradeLeverage = localStorage.getItem('tradeLeverage') || '1';
+      
+      if (!tradeAmount) {
+        setToast({
+          show: true,
+          message: 'Please set a trade amount in Settings first',
+          type: 'error'
+        });
+        return;
+      }
+
+      // Get current price and instrument info
+      const [priceResponse, instrumentResponse] = await Promise.all([
+        fetch(`https://mybybitbot.com/api/tickers?symbol=${symbol}`),
+        fetch(`https://mybybitbot.com/api/instruments-info?symbol=${symbol}`)
+      ]);
+
+      const [priceData, instrumentData] = await Promise.all([
+        priceResponse.json(),
+        instrumentResponse.json()
+      ]);
+
+      if (!priceData?.result?.list?.[0]?.lastPrice) {
+        throw new Error('Could not get current price');
+      }
+
+      const currentPrice = parseFloat(priceData.result.list[0].lastPrice);
+      const usdtAmount = parseFloat(tradeAmount);
+      
+      // Get minimum order value and lot size info
+      const minOrderValue = instrumentData.result.list[0].minOrderValue || 5;
+      
+      // Process order with needsMinOrderConfirm flag
+      await processOrder(symbol, usdtAmount, currentPrice, instrumentData, usdtAmount < minOrderValue);
     } catch (error) {
-      console.error('Error fetching balance:', error);
+      console.error('Error preparing order:', error);
+      setToast({
+        show: true,
+        message: 'Error preparing order: ' + error.message,
+        type: 'error'
+      });
     }
   };
 
-  const handlePlaceOrder = async (symbol) => {
-    if (!localStorage.getItem('tradePassword')) {
-      alert('Please set a trade password in Settings first');
-      return;
-    }
-
-    const tradeAmount = localStorage.getItem('tradeAmount');
-    const tradeLeverage = localStorage.getItem('tradeLeverage') || '1';
+  const processOrder = async (symbol, amount, currentPrice, instrumentData, needsMinOrderConfirm) => {
+    const lotSizeFilter = instrumentData.result.list[0].lotSizeFilter;
+    const qtyStep = parseFloat(lotSizeFilter.qtyStep);
+    const minOrderValue = instrumentData.result.list[0].minOrderValue || 5;
     
-    if (!tradeAmount) {
-      alert('Please set a trade amount in Settings first');
-      return;
+    // Calculate initial quantity
+    let quantity = amount / currentPrice;
+    
+    // Get the number of decimal places in qtyStep
+    const decimalPlaces = qtyStep.toString().split('.')[1]?.length || 0;
+    
+    // Round down to the nearest step size with proper precision
+    quantity = Math.floor(quantity / qtyStep) * qtyStep;
+    quantity = parseFloat(quantity.toFixed(decimalPlaces));
+    
+    // Check if the rounded quantity meets the minimum order value
+    let orderValue = quantity * currentPrice;
+    
+    // If the order value is below minimum, increase quantity by one step until it meets minimum
+    while (orderValue < minOrderValue) {
+      quantity = parseFloat((quantity + qtyStep).toFixed(decimalPlaces));
+      orderValue = quantity * currentPrice;
+    }
+    
+    // Ensure quantity is within min and max
+    const minOrderQty = parseFloat(lotSizeFilter.minOrderQty);
+    const maxOrderQty = parseFloat(lotSizeFilter.maxOrderQty);
+    
+    if (quantity < minOrderQty) {
+      throw new Error(`Minimum order quantity is ${minOrderQty}`);
+    }
+    if (quantity > maxOrderQty) {
+      throw new Error(`Maximum order quantity is ${maxOrderQty}`);
     }
 
     const orderDetails = {
       symbol: symbol,
       side: 'Buy',
       type: 'Market',
-      qty: tradeAmount,
-      leverage: tradeLeverage,
+      qty: quantity.toString(),
+      leverage: localStorage.getItem('tradeLeverage') || '1',
       positionIdx: 0,
-      timeInForce: 'GTC'
+      timeInForce: 'GTC',
+      lastPrice: currentPrice,
+      originalAmount: amount,
+      adjustedAmount: orderValue.toFixed(2)
     };
 
     console.log('Setting order details:', orderDetails);
     
     setOrderDetails(orderDetails);
     setIsModalOpen(true);
+    return needsMinOrderConfirm;
   };
 
-  const handleOrderConfirm = async (password) => {
+  const handleOrderConfirm = async (isMinOrderConfirm) => {
     try {
-      setIsPlacingOrder(true); // Show loading spinner
-      const storedLeverage = localStorage.getItem('tradeLeverage') || '10';
-      const storedAmount = localStorage.getItem('tradeAmount') || '100';
+      if (isMinOrderConfirm) {
+        // Re-process order with adjusted amount
+        const [priceResponse, instrumentResponse] = await Promise.all([
+          fetch(`https://mybybitbot.com/api/tickers?symbol=${orderDetails.symbol}`),
+          fetch(`https://mybybitbot.com/api/instruments-info?symbol=${orderDetails.symbol}`)
+        ]);
 
-      const orderParams = {
-        symbol: selectedCoin.symbol,
-        side: 'Buy',
-        type: 'Market',
-        qty: storedAmount,
-        leverage: storedLeverage,
-        positionIdx: 0,
-        timeInForce: 'GTC',
-        password: password
-      };
+        const [priceData, instrumentData] = await Promise.all([
+          priceResponse.json(),
+          instrumentResponse.json()
+        ]);
 
-      const response = await fetch('https://mybybitbot.com/api/place-order', {
+        const currentPrice = parseFloat(priceData.result.list[0].lastPrice);
+        await processOrder(orderDetails.symbol, parseFloat(orderDetails.adjustedAmount), currentPrice, instrumentData, false);
+        return;
+      }
+
+      setIsPlacingOrder(true);
+      
+      console.log('Setting order details:', orderDetails);
+      
+      const response = await fetch('https://mybybitbot.com/api/order', {
         method: 'POST',
         headers: {
-          'Accept': 'application/json',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(orderParams)
+        body: JSON.stringify(orderDetails)
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to place order');
+      }
 
       const data = await response.json();
       
-      if (response.ok && data.retCode === 0) {
+      if (data.retCode === 0) {
         setToast({
           show: true,
           message: 'Order placed successfully!',
           type: 'success'
         });
         setIsModalOpen(false);
+        setSelectedCoin(null);
       } else {
-        setToast({
-          show: true,
-          message: `Order failed: ${data.message || 'Unknown error'}`,
-          type: 'error'
-        });
+        throw new Error(data.retMsg || 'Failed to place order');
       }
     } catch (error) {
       console.error('Error placing order:', error);
@@ -178,7 +247,7 @@ function Home() {
         type: 'error'
       });
     } finally {
-      setIsPlacingOrder(false); // Hide loading spinner
+      setIsPlacingOrder(false);
     }
   };
 
@@ -322,10 +391,14 @@ function Home() {
 
       <TradeModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSelectedCoin(null);
+        }}
         onConfirm={handleOrderConfirm}
-        symbol={orderDetails?.symbol}
+        symbol={selectedCoin?.symbol}
         orderDetails={orderDetails}
+        needsMinOrderConfirm={orderDetails?.originalAmount < orderDetails?.adjustedAmount}
       />
 
       {isPlacingOrder && <LoadingSpinner />}

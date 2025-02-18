@@ -971,3 +971,15 @@ input:not(:checked) ~ .refresh-buttons {
 .detail-row:last-of-type {
   margin-bottom: 15px;
 }
+
+.symbol-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.full-ticker {
+  font-size: 0.7em;
+  color: #666;
+  margin-top: -5px;
+}

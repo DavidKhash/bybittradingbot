@@ -272,4 +272,16 @@
   margin: 10px 0;
   color: #666;
   font-size: 14px;
+}
+
+.symbol-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.full-ticker {
+  font-size: 0.7em;
+  color: #666;
+  margin-top: -5px;
 } 
