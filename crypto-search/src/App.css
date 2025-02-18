@@ -1,6 +1,6 @@
 /* src/App.css */
 .app-container {
-  padding-bottom: 70px; /* extra space for the bottom nav */
+  padding-bottom: 100px; /* Increased to account for larger nav bar */
 }
 
 .App {
@@ -373,4 +373,91 @@ input[type="number"]::-webkit-inner-spin-button {
 /* Add this to make the list fade in smoothly */
 ul {
   animation: fadeIn 0.3s ease-in;
+}
+
+/* Add these styles for the bottom navigation */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  padding: 6px 8px 28px; /* Increased bottom padding, reduced top */
+  height: 70px; /* Slightly increased height */
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  border-top: 1px solid #eaeaea;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.nav-links {
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-start; /* Align to top */
+  max-width: 600px;
+  margin: 0 auto;
+  height: 100%;
+  padding-top: 8px; /* Increased top padding to move content up */
+}
+
+.nav-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-decoration: none;
+  color: #666;
+  font-size: 0.7rem;
+  padding: 4px 16px;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+  min-width: 56px;
+  gap: 0px;
+  margin-bottom: auto; /* Push content to top */
+}
+
+.nav-link.active {
+  color: #00695c;
+  background: rgba(0, 105, 92, 0.1);
+}
+
+.nav-link.active .nav-icon {
+  color: #00695c;
+}
+
+.nav-link:active {
+  transform: scale(0.95);
+}
+
+.nav-icon {
+  font-size: 1.1rem; /* Smaller icons */
+  margin-bottom: 2px; /* Reduced bottom margin */
+  color: #666;
+}
+
+/* Update app container padding to account for new nav height */
+.app-container {
+  padding-bottom: max(100px, calc(100px + env(safe-area-inset-bottom)));
+}
+
+/* Add safe area padding for iOS devices */
+@supports (padding: max(0px)) {
+  .bottom-nav {
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+  }
+  
+  .app-container {
+    padding-bottom: max(100px, calc(100px + env(safe-area-inset-bottom)));
+  }
+}
+
+/* Ensure content doesn't get hidden behind the nav on mobile */
+@media (max-width: 768px) {
+  .bottom-nav {
+    padding: 6px 8px 32px; /* More bottom padding on mobile */
+  }
+  
+  .nav-links {
+    padding-top: 10px; /* Move content even higher on mobile */
+  }
 }

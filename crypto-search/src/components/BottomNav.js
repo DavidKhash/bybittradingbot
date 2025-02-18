@@ -5,22 +5,24 @@ import './BottomNav.css';
 const BottomNav = () => {
   return (
     <nav className="bottom-nav">
-      <NavLink to="/" className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
-        <div className="icon">🏠</div>
-        <div className="label">Home</div>
-      </NavLink>
-      <NavLink to="/orders" className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
-        <div className="icon">📋</div>
-        <div className="label">Orders</div>
-      </NavLink>
-      <NavLink to="/transactions" className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
-        <div className="icon">💸</div>
-        <div className="label">Transactions</div>
-      </NavLink>
-      <NavLink to="/settings" className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
-        <div className="icon">⚙️</div>
-        <div className="label">Settings</div>
-      </NavLink>
+      <div className="nav-links">
+        <NavLink to="/" className="nav-link">
+          <i className="fi fi-rr-search nav-icon"></i>
+          <span>Search</span>
+        </NavLink>
+        <NavLink to="/orders" className="nav-link">
+          <i className="fi fi-rr-chart-line-up nav-icon"></i>
+          <span>Orders</span>
+        </NavLink>
+        <NavLink to="/transactions" className="nav-link">
+          <i className="fi fi-rr-coins nav-icon"></i>
+          <span>PnL</span>
+        </NavLink>
+        <NavLink to="/settings" className="nav-link">
+          <i className="fi fi-rr-settings nav-icon"></i>
+          <span>Settings</span>
+        </NavLink>
+      </div>
     </nav>
   );
 };
