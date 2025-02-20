@@ -158,17 +158,6 @@ function Home() {
       quantity = parseFloat((quantity + qtyStep).toFixed(decimalPlaces));
       orderValue = quantity * currentPrice;
     }
-    
-    // Ensure quantity is within min and max
-    const minOrderQty = parseFloat(lotSizeFilter.minOrderQty);
-    const maxOrderQty = parseFloat(lotSizeFilter.maxOrderQty);
-    
-    if (quantity < minOrderQty) {
-      throw new Error(`Minimum order quantity is ${minOrderQty}`);
-    }
-    if (quantity > maxOrderQty) {
-      throw new Error(`Maximum order quantity is ${maxOrderQty}`);
-    }
 
     const orderDetails = {
       symbol: symbol,
@@ -228,16 +217,16 @@ function Home() {
 
       const data = await response.json();
       
-      if (data.retCode === 0) {
+      if (data.mainOrder?.retCode === 0 && data.stopLoss?.retCode === 0) {
         setToast({
           show: true,
-          message: 'Order placed successfully!',
+          message: 'Order and stop loss placed successfully!',
           type: 'success'
         });
         setIsModalOpen(false);
         setSelectedCoin(null);
       } else {
-        throw new Error(data.retMsg || 'Failed to place order');
+        throw new Error(data.mainOrder?.retMsg || data.stopLoss?.retMsg || 'Failed to place orders');
       }
     } catch (error) {
       console.error('Error placing order:', error);

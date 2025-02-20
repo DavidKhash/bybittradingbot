@@ -105,15 +105,15 @@ app.post('/api/order', async (req, res) => {
   try {
     const timestamp = Date.now().toString();
     
-    // First, set position mode to One-Way Mode
+    // First set position mode to One-Way Mode
     const setModeParams = {
       category: 'linear',
       symbol: req.body.symbol,
-      mode: 0, // 0: Merged Single. 3: Both Sides
+      mode: 0,
       recv_window: '5000'
     };
 
-    // Set position mode first
+    // Set position mode
     await axios.post(
       `${BASE_URL}/v5/position/switch-mode`,
       setModeParams,
@@ -151,44 +151,77 @@ app.post('/api/order', async (req, res) => {
       }
     );
 
-    // Then place the order
+    // Place the main market order
     const orderParams = {
       category: 'linear',
       symbol: req.body.symbol,
       side: req.body.side,
       orderType: 'Market',
       qty: req.body.qty,
-      positionIdx: 0, // 0 for One-Way Mode
+      positionIdx: 0,
       timeInForce: 'GoodTillCancel',
-      reduceOnly: false,
-      closeOnTrigger: false,
       recv_window: '5000'
     };
 
-    console.log('Placing order with params:', orderParams);
+    console.log('Placing main order with params:', orderParams);
 
-    const signature = getSignature(orderParams, timestamp, 'POST');
-    
-    const response = await axios.post(
+    const orderResponse = await axios.post(
       `${BASE_URL}/v5/order/create`,
       orderParams,
       {
         headers: {
           'X-BAPI-API-KEY': API_KEY,
-          'X-BAPI-SIGN': signature,
+          'X-BAPI-SIGN': getSignature(orderParams, timestamp, 'POST'),
           'X-BAPI-TIMESTAMP': timestamp,
           'X-BAPI-RECV-WINDOW': '5000',
           'Content-Type': 'application/json'
         }
       }
     );
-    
-    console.log('Order response:', response.data);
-    res.json(response.data);
+
+    // Calculate stop loss price (35% below entry price)
+    const entryPrice = parseFloat(req.body.lastPrice);
+    const stopLossPrice = (entryPrice * 0.65).toFixed(4); // 35% below entry
+
+    // Set the stop loss using the correct endpoint
+    const stopLossParams = {
+      category: 'linear',
+      symbol: req.body.symbol,
+      stopLoss: stopLossPrice,
+      slTriggerBy: 'LastPrice',
+      tpslMode: 'Full',
+      slOrderType: 'Market',
+      positionIdx: 0,
+      takeProfit: "0", // Set to 0 to cancel any existing TP
+      trailingStop: "0", // Set to 0 to cancel any existing TS
+      recv_window: '5000'
+    };
+
+    console.log('Setting stop loss with params:', stopLossParams);
+
+    const stopLossResponse = await axios.post(
+      `${BASE_URL}/v5/position/trading-stop`,
+      stopLossParams,
+      {
+        headers: {
+          'X-BAPI-API-KEY': API_KEY,
+          'X-BAPI-SIGN': getSignature(stopLossParams, timestamp, 'POST'),
+          'X-BAPI-TIMESTAMP': timestamp,
+          'X-BAPI-RECV-WINDOW': '5000',
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    // Return combined response
+    res.json({
+      mainOrder: orderResponse.data,
+      stopLoss: stopLossResponse.data
+    });
   } catch (error) {
-    console.error('Error placing order:', error.response?.data || error.message);
+    console.error('Error placing orders:', error.response?.data || error.message);
     res.status(500).json({ 
-      error: 'Failed to place order',
+      error: 'Failed to place orders',
       details: error.response?.data || error.message
     });
   }
